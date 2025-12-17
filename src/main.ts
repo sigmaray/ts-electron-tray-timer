@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
+import { createCanvas } from 'canvas';
 
 // Расширяем тип app для свойства isQuitting
 declare global {
@@ -12,6 +13,13 @@ declare global {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean } = {
+  seconds: 0,
+  isRunning: false,
+  isAlerting: false
+};
+let blinkInterval: NodeJS.Timeout | null = null;
+let isBlinking = false;
 
 function updateTrayMenu(): void {
   if (!tray) return;
@@ -44,30 +52,92 @@ function updateTrayMenu(): void {
   tray.setContextMenu(contextMenu);
 }
 
-function getTrayIcon(): Electron.NativeImage {
-  // Сначала пробуем загрузить иконку из файлов (dist/assets/icon.png)
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
-  try {
-    const icon = nativeImage.createFromPath(iconPath);
-    if (!icon.isEmpty()) {
-      return icon;
-    }
-  } catch {
-    // игнорируем и переходим к запасному варианту
+function createTextIcon(text: string, isBlinking: boolean = false): Electron.NativeImage {
+  const size = 22; // Стандартный размер для трея
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+  
+  // Определяем цвет в зависимости от состояния
+  let bgColor: string;
+  let textColor: string = '#FFFFFF';
+  
+  if (isBlinking) {
+    // Мигание: красный
+    bgColor = '#FF0000';
+  } else if (text === '—') {
+    // Прочерк: серый
+    bgColor = '#808080';
+  } else {
+    // Активный таймер: фиолетовый
+    bgColor = '#7c3aed';
   }
+  
+  // Рисуем фон
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, size, size);
+  
+  // Рисуем текст
+  ctx.fillStyle = textColor;
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, size / 2, size / 2);
+  
+  // Конвертируем canvas в buffer
+  const buffer = canvas.toBuffer('image/png');
+  return nativeImage.createFromBuffer(buffer);
+}
 
-  // Запасная иконка: простая фиолетовая плашка 32x32
-  const size = 32;
-  const data = Buffer.alloc(size * size * 4);
-  for (let i = 0; i < size * size; i++) {
-    const idx = i * 4;
-    // BGRA
-    data[idx] = 0xed; // B
-    data[idx + 1] = 0x3a; // G
-    data[idx + 2] = 0x7c; // R
-    data[idx + 3] = 0xff; // A
+function formatTimeForTray(seconds: number): string {
+  if (seconds <= 0) return '—';
+  if (seconds < 60) return String(seconds);
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function updateTrayIcon(): void {
+  if (!tray) return;
+  
+  let icon: Electron.NativeImage;
+  let tooltipText: string;
+  
+  if (timerState.isAlerting) {
+    // Мигание: красная иконка
+    icon = createTextIcon('!', isBlinking);
+    tooltipText = '⏰ Время истекло!';
+  } else if (timerState.isRunning && timerState.seconds > 0) {
+    // Показываем оставшиеся секунды
+    const text = formatTimeForTray(timerState.seconds);
+    icon = createTextIcon(text, false);
+    tooltipText = `Таймер: ${formatTimeForTray(timerState.seconds)}`;
+  } else {
+    // Прочерк когда таймер не запущен
+    icon = createTextIcon('—', false);
+    tooltipText = 'Таймер не запущен';
   }
-  return nativeImage.createFromBuffer(data, { width: size, height: size });
+  
+  tray.setImage(icon);
+  tray.setToolTip(tooltipText);
+}
+
+function startBlinking(): void {
+  if (blinkInterval) return;
+  
+  isBlinking = false;
+  blinkInterval = setInterval(() => {
+    isBlinking = !isBlinking;
+    updateTrayIcon();
+  }, 500); // Мигание каждые 500мс
+}
+
+function stopBlinking(): void {
+  if (blinkInterval) {
+    clearInterval(blinkInterval);
+    blinkInterval = null;
+  }
+  isBlinking = false;
+  updateTrayIcon();
 }
 
 function createWindow(): void {
@@ -77,6 +147,7 @@ function createWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -99,11 +170,12 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  tray = new Tray(getTrayIcon());
+  // Начальная иконка с прочерком
+  tray = new Tray(createTextIcon('—', false));
 
-  tray.setToolTip('Electron Tray App');
 
   updateTrayMenu();
+  updateTrayIcon();
 
   // ЛКМ по иконке: показать/скрыть окно
   tray.on('click', () => {
@@ -128,6 +200,19 @@ function createTray(): void {
 app.whenReady().then(() => {
   createWindow();
   createTray();
+
+  // Обработчик обновлений состояния таймера
+  ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean }) => {
+    timerState = state;
+    
+    if (state.isAlerting) {
+      startBlinking();
+    } else {
+      stopBlinking();
+    }
+    
+    updateTrayIcon();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

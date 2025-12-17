@@ -4,6 +4,22 @@ let audioContext: AudioContext | null = null;
 let audioInterval: NodeJS.Timeout | null = null;
 let notification: Notification | null = null;
 
+// Типы для electronAPI
+interface ElectronAPI {
+  updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean }) => void;
+}
+
+function sendTimerUpdate(): void {
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    electronAPI.updateTimerState({
+      seconds: remainingSeconds,
+      isRunning: timerInterval !== null,
+      isAlerting: notification !== null
+    });
+  }
+}
+
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -43,14 +59,18 @@ function startTimer(): void {
   input.disabled = true;
   if (status) status.textContent = 'Таймер запущен...';
 
+  sendTimerUpdate();
+
   timerInterval = setInterval(() => {
     remainingSeconds--;
     updateDisplay();
+    sendTimerUpdate();
 
     if (remainingSeconds <= 0) {
       stopTimer();
       showNotification();
       playAlarmSound();
+      sendTimerUpdate();
     }
   }, 1000);
 }
@@ -76,6 +96,7 @@ function stopTimer(): void {
 
   // Останавливаем звук если он играет
   stopAlarmSound();
+  sendTimerUpdate();
 }
 
 function showNotification(): void {
@@ -95,6 +116,7 @@ function showNotification(): void {
     notification.onclose = () => {
       stopAlarmSound();
       notification = null;
+      sendTimerUpdate();
     };
 
     // Останавливаем звук при клике на уведомление
@@ -102,11 +124,15 @@ function showNotification(): void {
       stopAlarmSound();
       if (window.focus) window.focus();
       notification?.close();
+      sendTimerUpdate();
     };
+    
+    sendTimerUpdate();
   } else {
     // Если уведомления не разрешены, показываем alert
     alert('⏰ Время истекло!');
     stopAlarmSound();
+    sendTimerUpdate();
   }
 }
 
