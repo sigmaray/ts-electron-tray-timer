@@ -13,6 +13,37 @@ declare global {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
+function updateTrayMenu(): void {
+  if (!tray) return;
+  const isVisible = mainWindow?.isVisible() ?? false;
+  const toggleLabel = isVisible ? 'Свернуть в трей' : 'Показать';
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: toggleLabel,
+      click: () => {
+        if (!mainWindow) return;
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        updateTrayMenu();
+      },
+    },
+    {
+      label: 'Выход',
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+}
+
 function getTrayIcon(): Electron.NativeImage {
   // Сначала пробуем загрузить иконку из файлов (dist/assets/icon.png)
   const iconPath = path.join(__dirname, 'assets', 'icon.png');
@@ -62,35 +93,35 @@ function createWindow(): void {
   mainWindow.on('minimize', () => {
     mainWindow?.hide();
   });
+
+  mainWindow.on('show', updateTrayMenu);
+  mainWindow.on('hide', updateTrayMenu);
 }
 
 function createTray(): void {
   tray = new Tray(getTrayIcon());
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Показать',
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.focus();
-      },
-    },
-    {
-      label: 'Выход',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-
   tray.setToolTip('Electron Tray App');
-  tray.setContextMenu(contextMenu);
+
+  updateTrayMenu();
+
+  // ЛКМ по иконке: показать/скрыть окно
+  tray.on('click', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    updateTrayMenu();
+  });
 
   // Двойной клик по иконке также показывает окно
   tray.on('double-click', () => {
     mainWindow?.show();
     mainWindow?.focus();
+    updateTrayMenu();
   });
 }
 
