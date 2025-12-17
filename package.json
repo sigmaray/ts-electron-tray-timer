@@ -4,7 +4,7 @@
   "description": "Electron app with system tray",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc && cp src/index.html dist/index.html && if [ -d assets ]; then mkdir -p dist/assets && cp assets/* dist/assets/; fi",
+    "build": "tsc && cp src/index.html dist/index.html && if [ -d src/assets ]; then mkdir -p dist/assets && cp src/assets/* dist/assets/; fi",
     "start": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron .",
     "dev": "ELECTRON_DISABLE_SANDBOX=1 tsc --watch & ELECTRON_DISABLE_SANDBOX=1 electron ."
   },
