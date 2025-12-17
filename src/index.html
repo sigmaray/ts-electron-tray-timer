@@ -20,16 +20,87 @@
         .container {
             text-align: center;
             max-width: 600px;
+            width: 100%;
         }
         h1 {
             font-size: 2.5em;
             margin-bottom: 20px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
-        p {
+        .timer-section {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .timer-display {
+            font-size: 4em;
+            font-weight: bold;
+            margin: 20px 0;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .timer-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+        input[type="number"] {
+            padding: 12px 20px;
             font-size: 1.2em;
-            line-height: 1.6;
-            margin-bottom: 15px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            width: 150px;
+            text-align: center;
+        }
+        input[type="number"]:focus {
+            outline: 3px solid rgba(255, 255, 255, 0.5);
+            background: white;
+        }
+        label {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+        button:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status {
+            margin-top: 15px;
+            font-size: 1em;
+            min-height: 20px;
         }
         .info {
             background: rgba(255, 255, 255, 0.1);
@@ -37,22 +108,194 @@
             border-radius: 10px;
             margin-top: 30px;
             backdrop-filter: blur(10px);
+            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Electron Tray App</h1>
-        <p>Приложение работает в системном трее</p>
-        <p>При закрытии окна приложение сворачивается в tray</p>
+        <h1>⏱️ Таймер</h1>
+        
+        <div class="timer-section">
+            <div class="timer-display" id="timerDisplay">00:00</div>
+            <div class="timer-controls">
+                <div class="input-group">
+                    <label for="secondsInput">Время (секунды):</label>
+                    <input type="number" id="secondsInput" min="1" value="60" placeholder="60">
+                </div>
+                <button id="startBtn" onclick="startTimer()">Запустить</button>
+                <button id="stopBtn" onclick="stopTimer()" disabled>Остановить</button>
+                <div class="status" id="status"></div>
+            </div>
+        </div>
         
         <div class="info">
             <p><strong>Инструкция:</strong></p>
-            <p>Закройте это окно, и приложение свернется в системный трей.</p>
-            <p>Щелкните правой кнопкой по иконке в трее, чтобы увидеть меню.</p>
-            <p>Выберите "Выход" для полного закрытия приложения.</p>
+            <p>Введите время в секундах и нажмите "Запустить".</p>
+            <p>После истечения времени появится уведомление и звуковой сигнал.</p>
+            <p>Приложение можно свернуть в трей - таймер продолжит работать.</p>
         </div>
     </div>
+
+    <script>
+        let timerInterval = null;
+        let remainingSeconds = 0;
+        let audioContext = null;
+        let audioInterval = null;
+        let notification = null;
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function updateDisplay() {
+            const display = document.getElementById('timerDisplay');
+            display.textContent = formatTime(remainingSeconds);
+        }
+
+        function startTimer() {
+            const input = document.getElementById('secondsInput');
+            const seconds = parseInt(input.value);
+            
+            if (isNaN(seconds) || seconds < 1) {
+                document.getElementById('status').textContent = 'Введите корректное время!';
+                return;
+            }
+
+            remainingSeconds = seconds;
+            updateDisplay();
+            
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('secondsInput').disabled = true;
+            document.getElementById('status').textContent = 'Таймер запущен...';
+
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                updateDisplay();
+
+                if (remainingSeconds <= 0) {
+                    stopTimer();
+                    showNotification();
+                    playAlarmSound();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            remainingSeconds = 0;
+            updateDisplay();
+            
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('secondsInput').disabled = false;
+            document.getElementById('status').textContent = 'Таймер остановлен';
+
+            // Останавливаем звук если он играет
+            stopAlarmSound();
+        }
+
+        function showNotification() {
+            // Запрашиваем разрешение на уведомления
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            if (Notification.permission === 'granted') {
+                notification = new Notification('⏰ Время истекло!', {
+                    body: 'Таймер завершил отсчет.',
+                    icon: undefined,
+                    requireInteraction: true,
+                    tag: 'timer-alert'
+                });
+
+                // Останавливаем звук когда уведомление закрыто
+                notification.onclose = () => {
+                    stopAlarmSound();
+                    notification = null;
+                };
+
+                // Останавливаем звук при клике на уведомление
+                notification.onclick = () => {
+                    stopAlarmSound();
+                    if (window.focus) window.focus();
+                    notification.close();
+                };
+            } else {
+                // Если уведомления не разрешены, показываем alert
+                alert('⏰ Время истекло!');
+                stopAlarmSound();
+            }
+        }
+
+        function playAlarmSound() {
+            // Создаем звуковой сигнал с помощью Web Audio API
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                function playBeep() {
+                    if (!audioContext) return;
+                    
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = 800; // Частота в Гц
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                }
+
+                // Играем звук каждые 0.6 секунды
+                playBeep();
+                audioInterval = setInterval(() => {
+                    if (audioContext && notification) {
+                        playBeep();
+                    } else {
+                        stopAlarmSound();
+                    }
+                }, 600);
+            } catch (e) {
+                console.error('Ошибка воспроизведения звука:', e);
+            }
+        }
+
+        function stopAlarmSound() {
+            if (audioInterval) {
+                clearInterval(audioInterval);
+                audioInterval = null;
+            }
+            if (audioContext) {
+                audioContext.close().catch(() => {});
+                audioContext = null;
+            }
+        }
+
+        // Запрашиваем разрешение на уведомления при загрузке
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Обработка Enter в поле ввода
+        document.getElementById('secondsInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('startBtn').disabled) {
+                startTimer();
+            }
+        });
+    </script>
 </body>
 </html>
 
