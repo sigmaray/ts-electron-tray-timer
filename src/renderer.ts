@@ -96,6 +96,12 @@ function stopTimer(): void {
 
   // Останавливаем звук если он играет
   stopAlarmSound();
+  // Закрываем уведомление если оно активно
+  if (notification) {
+    notification.close();
+    notification = null;
+  }
+  updateDismissButton();
   sendTimerUpdate();
 }
 
@@ -116,6 +122,7 @@ function showNotification(): void {
     notification.onclose = () => {
       stopAlarmSound();
       notification = null;
+      updateDismissButton();
       sendTimerUpdate();
     };
 
@@ -124,14 +131,20 @@ function showNotification(): void {
       stopAlarmSound();
       if (window.focus) window.focus();
       notification?.close();
+      updateDismissButton();
       sendTimerUpdate();
     };
     
+    updateDismissButton();
     sendTimerUpdate();
+    updateDismissButton();
   } else {
     // Если уведомления не разрешены, показываем alert
     alert('⏰ Время истекло!');
     stopAlarmSound();
+    // Создаем фиктивное уведомление для показа кнопки
+    notification = {} as Notification;
+    updateDismissButton();
     sendTimerUpdate();
   }
 }
@@ -188,6 +201,28 @@ function stopAlarmSound(): void {
   }
 }
 
+function updateDismissButton(): void {
+  const dismissBtn = document.getElementById('dismissAlertBtn') as HTMLButtonElement;
+  if (dismissBtn) {
+    dismissBtn.style.display = notification !== null ? 'block' : 'none';
+  }
+}
+
+function dismissNotification(): void {
+  if (notification) {
+    notification.close();
+    notification = null;
+  }
+  stopAlarmSound();
+  updateDismissButton();
+  sendTimerUpdate();
+  
+  const status = document.getElementById('status');
+  if (status) {
+    status.textContent = 'Уведомление отключено';
+  }
+}
+
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
   // Запрашиваем разрешение на уведомления при загрузке
@@ -211,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Подключаем обработчики кнопок
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const dismissBtn = document.getElementById('dismissAlertBtn');
 
   if (startBtn) {
     startBtn.addEventListener('click', startTimer);
@@ -218,6 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (stopBtn) {
     stopBtn.addEventListener('click', stopTimer);
+  }
+
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', dismissNotification);
   }
 });
 

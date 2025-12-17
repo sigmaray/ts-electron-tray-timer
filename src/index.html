@@ -97,6 +97,22 @@
             cursor: not-allowed;
             transform: none;
         }
+        .dismiss-btn {
+            background: rgba(255, 100, 100, 0.9) !important;
+            color: white !important;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .dismiss-btn:hover {
+            background: rgba(255, 80, 80, 1) !important;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
         .status {
             margin-top: 15px;
             font-size: 1em;
@@ -125,6 +141,7 @@
                 </div>
                 <button id="startBtn">Запустить</button>
                 <button id="stopBtn" disabled>Остановить</button>
+                <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Отключить уведомление</button>
                 <div class="status" id="status"></div>
             </div>
         </div>
