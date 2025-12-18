@@ -13,10 +13,11 @@ declare global {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean } = {
+let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean } = {
   seconds: 0,
   isRunning: false,
-  isAlerting: false
+  isAlerting: false,
+  isPaused: false
 };
 let blinkInterval: NodeJS.Timeout | null = null;
 let isBlinking = false;
@@ -112,6 +113,10 @@ function updateTrayIcon(): void {
     // Мигание: красная иконка
     icon = createTextIcon('!', isBlinking);
     tooltipText = '⏰ Время истекло!';
+  } else if (timerState.isPaused && timerState.seconds > 0) {
+    // Таймер на паузе - показываем "p"
+    icon = createTextIcon('p', false);
+    tooltipText = `Таймер на паузе: ${formatTimeForTray(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
     // Показываем оставшиеся секунды
     const text = formatTimeForTray(timerState.seconds);
@@ -279,7 +284,7 @@ app.whenReady().then(() => {
   createTray();
 
   // Обработчик обновлений состояния таймера
-  ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean }) => {
+  ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
     timerState = state;
     
     if (state.isAlerting) {

@@ -7,7 +7,7 @@ let isPaused: boolean = false;
 
 // Типы для electronAPI
 interface ElectronAPI {
-  updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean }) => void;
+  updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
 }
 
 function sendTimerUpdate(): void {
@@ -16,7 +16,8 @@ function sendTimerUpdate(): void {
     electronAPI.updateTimerState({
       seconds: remainingSeconds,
       isRunning: timerInterval !== null && !isPaused,
-      isAlerting: notification !== null
+      isAlerting: notification !== null,
+      isPaused: isPaused && timerInterval !== null
     });
   }
 }
