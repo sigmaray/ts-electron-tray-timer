@@ -90,10 +90,16 @@ function createTextIcon(text: string, isBlinking: boolean = false): Electron.Nat
 
 function formatTimeForTray(seconds: number): string {
   if (seconds <= 0) return '—';
-  if (seconds < 60) return String(seconds);
+  if (seconds < 60) return `${seconds}s`;
+  
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
+  if (mins < 60) {
+    return `${mins}m`;
+  }
+  
+  // Для больших значений показываем в часах с одной десятичной цифрой
+  const hours = seconds / 3600;
+  return `${hours.toFixed(1)}h`;
 }
 
 function updateTrayIcon(): void {
