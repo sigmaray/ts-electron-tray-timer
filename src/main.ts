@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { createCanvas } from 'canvas';
 
@@ -43,9 +43,20 @@ function updateTrayMenu(): void {
     },
     {
       label: 'Выход',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
+      click: async () => {
+        const result = await dialog.showMessageBox(mainWindow || null as any, {
+          type: 'question',
+          buttons: ['Отмена', 'Закрыть'],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Подтверждение',
+          message: 'Вы уверены, что хотите закрыть приложение?'
+        });
+
+        if (result.response === 1) {
+          app.isQuitting = true;
+          app.quit();
+        }
       },
     },
   ]);
