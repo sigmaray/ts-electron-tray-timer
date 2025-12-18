@@ -1,7 +1,7 @@
 {
   "name": "electron-tray",
   "version": "1.0.0",
-  "description": "Electron app with system tray",
+  "description": "Electron timer app with system tray",
   "main": "dist/main.js",
   "scripts": {
     "start": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron --no-sandbox .",
