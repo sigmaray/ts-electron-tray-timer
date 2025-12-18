@@ -296,6 +296,20 @@ app.whenReady().then(() => {
     updateTrayIcon();
   });
 
+  // Обработчик сворачивания окна в трей
+  ipcMain.on('minimize-window', () => {
+    if (mainWindow) {
+      mainWindow.hide();
+      updateTrayMenu();
+    }
+  });
+
+  // Обработчик закрытия приложения
+  ipcMain.on('close-app', () => {
+    app.isQuitting = true;
+    app.quit();
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

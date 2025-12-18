@@ -8,6 +8,8 @@ let isPaused: boolean = false;
 // Типы для electronAPI
 interface ElectronAPI {
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
+  minimizeWindow: () => void;
+  closeApp: () => void;
 }
 
 function sendTimerUpdate(): void {
@@ -100,8 +102,6 @@ function startTimer(): void {
   input.disabled = true;
   if (status) status.textContent = 'Таймер запущен...';
 
-  sendTimerUpdate();
-
   timerInterval = setInterval(() => {
     if (!isPaused) {
       remainingSeconds--;
@@ -116,6 +116,9 @@ function startTimer(): void {
       }
     }
   }, 1000);
+
+  // Обновляем иконку трея сразу после создания интервала
+  sendTimerUpdate();
 }
 
 function pauseResumeTimer(): void {
@@ -331,6 +334,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (dismissBtn) {
     dismissBtn.addEventListener('click', dismissNotification);
+  }
+
+  // Обработчики быстрых ссылок
+  const quickLinks = document.querySelectorAll('.quick-link');
+  quickLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const timeValue = (link as HTMLElement).getAttribute('data-time');
+      if (timeValue) {
+        const input = document.getElementById('secondsInput') as HTMLInputElement;
+        if (input) {
+          input.value = timeValue;
+        }
+      }
+    });
+  });
+
+  // Обработчики кнопок управления приложением
+  const minimizeBtn = document.getElementById('minimizeBtn');
+  const closeBtn = document.getElementById('closeBtn');
+
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', () => {
+      const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+      if (electronAPI) {
+        electronAPI.minimizeWindow();
+      }
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      const confirmed = confirm('Вы уверены, что хотите закрыть приложение?');
+      if (confirmed) {
+        const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+        if (electronAPI) {
+          electronAPI.closeApp();
+        }
+      }
+    });
   }
 });
 

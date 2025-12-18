@@ -113,6 +113,37 @@
                 opacity: 0.8;
             }
         }
+        .quick-links {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-link {
+            color: white;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: opacity 0.2s;
+        }
+        .quick-link:hover {
+            opacity: 0.8;
+        }
+        .app-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .close-btn {
+            background: rgba(255, 100, 100, 0.9) !important;
+            color: white !important;
+        }
+        .close-btn:hover {
+            background: rgba(255, 80, 80, 1) !important;
+        }
         .status {
             margin-top: 15px;
             font-size: 1em;
@@ -139,10 +170,20 @@
                     <label for="secondsInput">Время:</label>
                     <input type="text" id="secondsInput" value="60" placeholder="60, 1m, 1h, 1d">
                 </div>
+                <div class="quick-links">
+                    <a href="#" class="quick-link" data-time="1m">1 минута</a>
+                    <a href="#" class="quick-link" data-time="5m">5 минут</a>
+                    <a href="#" class="quick-link" data-time="30m">30 минут</a>
+                    <a href="#" class="quick-link" data-time="1h">1 час</a>
+                </div>
                 <button id="startBtn">Запустить</button>
                 <button id="pauseBtn" disabled>Пауза</button>
                 <button id="stopBtn" disabled>Остановить</button>
                 <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Отключить уведомление</button>
+                <div class="app-controls">
+                    <button id="minimizeBtn">Свернуть в трей</button>
+                    <button id="closeBtn" class="close-btn">Закрыть</button>
+                </div>
                 <div class="status" id="status"></div>
             </div>
         </div>
