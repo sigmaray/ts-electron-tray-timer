@@ -3,6 +3,7 @@ let remainingSeconds: number = 0;
 let audioContext: AudioContext | null = null;
 let audioInterval: NodeJS.Timeout | null = null;
 let notification: Notification | null = null;
+let isPaused: boolean = false;
 
 // Типы для electronAPI
 interface ElectronAPI {
@@ -14,7 +15,7 @@ function sendTimerUpdate(): void {
   if (electronAPI) {
     electronAPI.updateTimerState({
       seconds: remainingSeconds,
-      isRunning: timerInterval !== null,
+      isRunning: timerInterval !== null && !isPaused,
       isAlerting: notification !== null
     });
   }
@@ -84,31 +85,55 @@ function startTimer(): void {
   }
 
   remainingSeconds = seconds;
+  isPaused = false;
   updateDisplay();
 
   const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
+  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
   const status = document.getElementById('status');
 
   if (startBtn) startBtn.disabled = true;
   if (stopBtn) stopBtn.disabled = false;
+  if (pauseBtn) pauseBtn.disabled = false;
   input.disabled = true;
   if (status) status.textContent = 'Таймер запущен...';
 
   sendTimerUpdate();
 
   timerInterval = setInterval(() => {
-    remainingSeconds--;
-    updateDisplay();
-    sendTimerUpdate();
-
-    if (remainingSeconds <= 0) {
-      stopTimer();
-      showNotification();
-      playAlarmSound();
+    if (!isPaused) {
+      remainingSeconds--;
+      updateDisplay();
       sendTimerUpdate();
+
+      if (remainingSeconds <= 0) {
+        stopTimer();
+        showNotification();
+        playAlarmSound();
+        sendTimerUpdate();
+      }
     }
   }, 1000);
+}
+
+function pauseResumeTimer(): void {
+  if (!timerInterval) return;
+
+  isPaused = !isPaused;
+
+  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
+  const status = document.getElementById('status');
+
+  if (pauseBtn) {
+    pauseBtn.textContent = isPaused ? 'Возобновить' : 'Пауза';
+  }
+
+  if (status) {
+    status.textContent = isPaused ? 'Таймер на паузе' : 'Таймер запущен...';
+  }
+
+  sendTimerUpdate();
 }
 
 function stopTimer(): void {
@@ -118,15 +143,21 @@ function stopTimer(): void {
   }
 
   remainingSeconds = 0;
+  isPaused = false;
   updateDisplay();
 
   const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
+  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
   const input = document.getElementById('secondsInput') as HTMLInputElement;
   const status = document.getElementById('status');
 
   if (startBtn) startBtn.disabled = false;
   if (stopBtn) stopBtn.disabled = true;
+  if (pauseBtn) {
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = 'Пауза';
+  }
   if (input) input.disabled = false;
   if (status) status.textContent = 'Таймер остановлен';
 
@@ -282,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Подключаем обработчики кнопок
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
   const dismissBtn = document.getElementById('dismissAlertBtn');
 
   if (startBtn) {
@@ -290,6 +322,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (stopBtn) {
     stopBtn.addEventListener('click', stopTimer);
+  }
+
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', pauseResumeTimer);
   }
 
   if (dismissBtn) {

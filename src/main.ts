@@ -146,10 +146,81 @@ function stopBlinking(): void {
   updateTrayIcon();
 }
 
+function createAppIcon(): Electron.NativeImage {
+  const size = 256; // Большой размер для иконки приложения
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+  
+  // Градиентный фон (фиолетовый)
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, '#667eea');
+  gradient.addColorStop(1, '#764ba2');
+  
+  // Рисуем закругленный прямоугольник
+  const radius = size * 0.15;
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.lineTo(size - radius, 0);
+  ctx.quadraticCurveTo(size, 0, size, radius);
+  ctx.lineTo(size, size - radius);
+  ctx.quadraticCurveTo(size, size, size - radius, size);
+  ctx.lineTo(radius, size);
+  ctx.quadraticCurveTo(0, size, 0, size - radius);
+  ctx.lineTo(0, radius);
+  ctx.quadraticCurveTo(0, 0, radius, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Рисуем иконку таймера (часы)
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.lineWidth = size * 0.03;
+  
+  // Циферблат
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const clockRadius = size * 0.3;
+  
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, clockRadius, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Стрелки часов (показывают 12:00)
+  const hourLength = clockRadius * 0.5;
+  const minuteLength = clockRadius * 0.7;
+  
+  // Часовая стрелка (12)
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(centerX, centerY - hourLength);
+  ctx.lineWidth = size * 0.04;
+  ctx.stroke();
+  
+  // Минутная стрелка (12)
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(centerX, centerY - minuteLength);
+  ctx.lineWidth = size * 0.025;
+  ctx.stroke();
+  
+  // Центральная точка
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, size * 0.02, 0, 2 * Math.PI);
+  ctx.fill();
+  
+  // Конвертируем canvas в buffer
+  const buffer = canvas.toBuffer('image/png');
+  return nativeImage.createFromBuffer(buffer);
+}
+
 function createWindow(): void {
+  const appIcon = createAppIcon();
+  
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
+    icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
