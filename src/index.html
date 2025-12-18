@@ -136,8 +136,8 @@
             <div class="timer-display" id="timerDisplay">00:00</div>
             <div class="timer-controls">
                 <div class="input-group">
-                    <label for="secondsInput">Время (секунды):</label>
-                    <input type="number" id="secondsInput" min="1" value="60" placeholder="60">
+                    <label for="secondsInput">Время:</label>
+                    <input type="text" id="secondsInput" value="60" placeholder="60, 1m, 1h, 1d">
                 </div>
                 <button id="startBtn">Запустить</button>
                 <button id="stopBtn" disabled>Остановить</button>
@@ -148,7 +148,8 @@
         
         <div class="info">
             <p><strong>Инструкция:</strong></p>
-            <p>Введите время в секундах и нажмите "Запустить".</p>
+            <p>Введите время и нажмите "Запустить".</p>
+            <p>Форматы: "500" (секунды), "1m" (минута), "1h" (час), "1d" (день).</p>
             <p>После истечения времени появится уведомление и звуковой сигнал.</p>
             <p>Приложение можно свернуть в трей - таймер продолжит работать.</p>
         </div>

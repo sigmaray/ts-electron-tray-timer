@@ -33,16 +33,52 @@ function updateDisplay(): void {
   }
 }
 
+function parseTimeInput(inputValue: string): number | null {
+  const trimmed = inputValue.trim();
+  if (!trimmed) return null;
+
+  // Пробуем распарсить как число (секунды)
+  const numberMatch = trimmed.match(/^(\d+)$/);
+  if (numberMatch) {
+    const seconds = parseInt(numberMatch[1], 10);
+    return seconds > 0 ? seconds : null;
+  }
+
+  // Парсим форматы с суффиксами: 1m, 1h, 1d
+  const timeMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*([smhd])$/i);
+  if (timeMatch) {
+    const value = parseFloat(timeMatch[1]);
+    const unit = timeMatch[2].toLowerCase();
+
+    if (value <= 0 || isNaN(value)) return null;
+
+    switch (unit) {
+      case 's':
+        return Math.floor(value);
+      case 'm':
+        return Math.floor(value * 60);
+      case 'h':
+        return Math.floor(value * 3600);
+      case 'd':
+        return Math.floor(value * 86400); // 24 * 60 * 60
+      default:
+        return null;
+    }
+  }
+
+  return null;
+}
+
 function startTimer(): void {
   const input = document.getElementById('secondsInput') as HTMLInputElement;
   if (!input) return;
 
-  const seconds = parseInt(input.value, 10);
+  const seconds = parseTimeInput(input.value);
 
-  if (isNaN(seconds) || seconds < 1) {
+  if (seconds === null || seconds < 1) {
     const status = document.getElementById('status');
     if (status) {
-      status.textContent = 'Введите корректное время!';
+      status.textContent = 'Введите корректное время! (например: 500, 1m, 1h, 1d)';
     }
     return;
   }
