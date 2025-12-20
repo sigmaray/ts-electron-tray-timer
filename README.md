@@ -15,15 +15,15 @@
 
 ### Linux
 
-Скачать `electron-tray-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray`)
+Скачать `electron-tray-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer`)
 
 ### Windows
 
-Скачать `Timer.Tray-1.0.0-win.zip`, разархивировать, запустить exe-файл ("Timer Tray.exe")
+Скачать `Timer.Tray-1.0.0-win.zip`, разархивировать, запустить exe-файл ("Tray Timer.exe")
 
 ### OS X
 
-Использовать файл `Timer.Tray-1.0.0-mac.zip`
+Использовать архив `Timer.Tray-1.0.0-mac.zip`
 
 ## Запуск через npm
 

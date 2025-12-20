@@ -1,5 +1,5 @@
 {
-  "name": "electron-tray",
+  "name": "electron-tray-timer",
   "version": "1.0.0",
   "description": "Electron timer app with system tray",
   "main": "dist/main.js",
@@ -22,8 +22,8 @@
     "typescript": "^5.3.3"
   },
   "build": {
-    "appId": "com.electron.timer-tray",
-    "productName": "Timer Tray",
+    "appId": "com.electron.tray-timer",
+    "productName": "Tray Timer",
     "directories": {
       "output": "release"
     },
