@@ -4,6 +4,8 @@
 
 Сгенерировано в Cursor. Код нужно выверить (не было времени это сделать), но вроде всё работает как надо.
 
+![Screenshot](README/screenshot.png)
+
 ## Функциональность
 
 - При закрытии окна приложение сворачивается в системный трей
@@ -17,13 +19,13 @@
 
 ### Linux
 
-Скачать `electron-tray-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer`)
+Скачать `electron-tray-timer-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer`)
 
 ### Windows
 
 Скачать `Timer.Tray-1.0.0-win.zip`, разархивировать, запустить exe-файл ("Tray Timer.exe")
 
-### OS X
+### macOS
 
 Использовать архив `Timer.Tray-1.0.0-mac.zip`
 
