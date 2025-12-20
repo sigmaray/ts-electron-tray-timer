@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron --no-sandbox .",
     "dev": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron --no-sandbox .",
-    "build": "tsc && cp src/index.html dist/index.html && if [ -d src/assets ]; then mkdir -p dist/assets && cp src/assets/* dist/assets/; fi",
+    "build": "tsc && cp src/index.html dist/index.html",
     "typecheck": "tsc --noEmit",
     "build:electron": "electron-builder --publish never"
   },
