@@ -235,7 +235,7 @@ function createWindow(): void {
   
   mainWindow = new BrowserWindow({
     width: 800,
-    height: 600,
+    height: 700,
     icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
