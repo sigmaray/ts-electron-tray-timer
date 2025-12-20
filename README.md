@@ -1,4 +1,4 @@
-# Electron Tray App
+# Electron Tray Timer App (TypeScript)
 
 Таймер на TypeScript и Electron с иконкой в системном трее.
 
