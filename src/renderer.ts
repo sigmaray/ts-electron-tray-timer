@@ -38,8 +38,8 @@ function updateDisplay(): void {
 }
 
 function adjustTime(seconds: number): void {
-  // Кнопки работают только если таймер запущен
-  if (!timerInterval || isPaused) return;
+  // Кнопки работают только если таймер запущен (включая паузу)
+  if (!timerInterval) return;
   
   remainingSeconds += seconds;
   
@@ -53,8 +53,8 @@ function adjustTime(seconds: number): void {
 }
 
 function updateTimeAdjustButtons(): void {
-  // Кнопки активны только если таймер запущен и не на паузе
-  const isActive = timerInterval !== null && !isPaused;
+  // Кнопки активны только если таймер запущен (включая паузу)
+  const isActive = timerInterval !== null;
   
   const buttons = [
     'adjustMinus1h', 'adjustMinus10m', 'adjustMinus5m', 'adjustMinus1m',
