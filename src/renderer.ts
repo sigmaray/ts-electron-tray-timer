@@ -37,6 +37,38 @@ function updateDisplay(): void {
   }
 }
 
+function adjustTime(seconds: number): void {
+  // Кнопки работают только если таймер запущен
+  if (!timerInterval || isPaused) return;
+  
+  remainingSeconds += seconds;
+  
+  // Не позволяем времени стать отрицательным
+  if (remainingSeconds < 0) {
+    remainingSeconds = 0;
+  }
+  
+  updateDisplay();
+  sendTimerUpdate();
+}
+
+function updateTimeAdjustButtons(): void {
+  // Кнопки активны только если таймер запущен и не на паузе
+  const isActive = timerInterval !== null && !isPaused;
+  
+  const buttons = [
+    'adjustMinus1h', 'adjustMinus10m', 'adjustMinus5m', 'adjustMinus1m',
+    'adjustPlus1m', 'adjustPlus5m', 'adjustPlus10m', 'adjustPlus1h'
+  ];
+  
+  buttons.forEach(buttonId => {
+    const button = document.getElementById(buttonId) as HTMLButtonElement;
+    if (button) {
+      button.disabled = !isActive;
+    }
+  });
+}
+
 function parseTimeInput(inputValue: string): number | null {
   const trimmed = inputValue.trim();
   if (!trimmed) return null;
@@ -119,6 +151,8 @@ function startTimer(): void {
 
   // Обновляем иконку трея сразу после создания интервала
   sendTimerUpdate();
+  // Обновляем состояние кнопок изменения времени после установки интервала
+  updateTimeAdjustButtons();
 }
 
 function pauseResumeTimer(): void {
@@ -137,6 +171,7 @@ function pauseResumeTimer(): void {
     status.textContent = isPaused ? 'Таймер на паузе' : 'Таймер запущен...';
   }
 
+  updateTimeAdjustButtons();
   sendTimerUpdate();
 }
 
@@ -164,6 +199,7 @@ function stopTimer(): void {
   }
   if (input) input.disabled = false;
   if (status) status.textContent = 'Таймер остановлен';
+  updateTimeAdjustButtons();
 
   // Останавливаем звук если он играет
   stopAlarmSound();
@@ -301,6 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Notification.requestPermission();
   }
 
+  // Инициализируем состояние кнопок изменения времени
+  updateTimeAdjustButtons();
+
   // Обработка Enter в поле ввода
   const input = document.getElementById('secondsInput') as HTMLInputElement;
   if (input) {
@@ -335,6 +374,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dismissBtn) {
     dismissBtn.addEventListener('click', dismissNotification);
   }
+
+  // Обработчики кнопок изменения времени
+  const adjustButtons = [
+    { id: 'adjustMinus1h', seconds: -3600 },
+    { id: 'adjustMinus10m', seconds: -600 },
+    { id: 'adjustMinus5m', seconds: -300 },
+    { id: 'adjustMinus1m', seconds: -60 },
+    { id: 'adjustPlus1m', seconds: 60 },
+    { id: 'adjustPlus5m', seconds: 300 },
+    { id: 'adjustPlus10m', seconds: 600 },
+    { id: 'adjustPlus1h', seconds: 3600 }
+  ];
+
+  adjustButtons.forEach(({ id, seconds }) => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.addEventListener('click', () => adjustTime(seconds));
+    }
+  });
 
   // Обработчики быстрых ссылок
   const quickLinks = document.querySelectorAll('.quick-link');

@@ -157,6 +157,27 @@
             backdrop-filter: blur(10px);
             font-size: 0.9em;
         }
+        .time-adjust-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        .time-adjust-btn {
+            padding: 8px 16px;
+            font-size: 0.95em;
+            min-width: 60px;
+        }
+        .time-adjust-description {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            backdrop-filter: blur(10px);
+            font-size: 0.85em;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -179,6 +200,19 @@
                 <button id="startBtn">Запустить</button>
                 <button id="pauseBtn" disabled>Пауза</button>
                 <button id="stopBtn" disabled>Остановить</button>
+                <div class="time-adjust-description">
+                    <p><strong>Изменение времени:</strong> Кнопки ниже позволяют быстро изменить оставшееся время таймера во время работы.</p>
+                </div>
+                <div class="time-adjust-buttons">
+                    <button id="adjustMinus1h" class="time-adjust-btn" disabled>-1h</button>
+                    <button id="adjustMinus10m" class="time-adjust-btn" disabled>-10m</button>
+                    <button id="adjustMinus5m" class="time-adjust-btn" disabled>-5m</button>
+                    <button id="adjustMinus1m" class="time-adjust-btn" disabled>-1m</button>
+                    <button id="adjustPlus1m" class="time-adjust-btn" disabled>+1m</button>
+                    <button id="adjustPlus5m" class="time-adjust-btn" disabled>+5m</button>
+                    <button id="adjustPlus10m" class="time-adjust-btn" disabled>+10m</button>
+                    <button id="adjustPlus1h" class="time-adjust-btn" disabled>+1h</button>
+                </div>
                 <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Отключить уведомление</button>
                 <div class="app-controls">
                     <button id="minimizeBtn">Свернуть в трей</button>
