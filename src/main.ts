@@ -22,6 +22,13 @@ let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPa
 let blinkInterval: NodeJS.Timeout | null = null;
 let isBlinking = false;
 
+// Переменные для таймера в main процессе
+let timerInterval: NodeJS.Timeout | null = null;
+let remainingSeconds: number = 0;
+let isPaused: boolean = false;
+let lastUpdateTime: number = 0;
+let timerEndTime: number = 0; // Время когда таймер должен закончиться
+
 function updateTrayMenu(): void {
   if (!tray) return;
   const isVisible = mainWindow?.isVisible() ?? false;
@@ -162,6 +169,115 @@ function stopBlinking(): void {
   updateTrayIcon();
 }
 
+function sendTimerUpdateToRenderer(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('timer-update', {
+      seconds: remainingSeconds,
+      isRunning: timerInterval !== null && !isPaused,
+      isPaused: isPaused && timerInterval !== null
+    });
+  }
+  
+  // Обновляем состояние для трея
+  timerState = {
+    seconds: remainingSeconds,
+    isRunning: timerInterval !== null && !isPaused,
+    isAlerting: timerState.isAlerting,
+    isPaused: isPaused && timerInterval !== null
+  };
+  
+  updateTrayIcon();
+}
+
+function startTimer(seconds: number): void {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+  }
+  
+  remainingSeconds = seconds;
+  isPaused = false;
+  lastUpdateTime = Date.now();
+  timerEndTime = lastUpdateTime + (seconds * 1000);
+  
+  timerInterval = setInterval(() => {
+    if (!isPaused) {
+      const currentTime = Date.now();
+      const elapsedMs = currentTime - lastUpdateTime;
+      const elapsedSeconds = Math.floor(elapsedMs / 1000);
+      
+      if (elapsedSeconds > 0) {
+        remainingSeconds = Math.max(0, Math.floor((timerEndTime - currentTime) / 1000));
+        lastUpdateTime = currentTime;
+        
+        sendTimerUpdateToRenderer();
+        
+        if (remainingSeconds <= 0) {
+          stopTimer();
+          // Отправляем сигнал о завершении таймера
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('timer-finished');
+          }
+        }
+      }
+    }
+  }, 100); // Проверяем каждые 100мс для точности
+  
+  sendTimerUpdateToRenderer();
+}
+
+function pauseResumeTimer(): void {
+  if (!timerInterval) return;
+  
+  if (isPaused) {
+    // Возобновляем - пересчитываем timerEndTime
+    const currentTime = Date.now();
+    timerEndTime = currentTime + (remainingSeconds * 1000);
+    lastUpdateTime = currentTime;
+  }
+  
+  isPaused = !isPaused;
+  sendTimerUpdateToRenderer();
+}
+
+function stopTimer(): void {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  
+  remainingSeconds = 0;
+  isPaused = false;
+  lastUpdateTime = 0;
+  timerEndTime = 0;
+  
+  sendTimerUpdateToRenderer();
+}
+
+function adjustTimerTime(seconds: number): void {
+  if (!timerInterval) return;
+  
+  // Если таймер работает, обновляем оставшееся время
+  if (!isPaused) {
+    const currentTime = Date.now();
+    remainingSeconds = Math.max(0, Math.floor((timerEndTime - currentTime) / 1000));
+    lastUpdateTime = currentTime;
+  }
+  
+  remainingSeconds += seconds;
+  
+  // Не позволяем времени стать отрицательным
+  if (remainingSeconds < 0) {
+    remainingSeconds = 0;
+  }
+  
+  // Обновляем timerEndTime
+  const currentTime = Date.now();
+  timerEndTime = currentTime + (remainingSeconds * 1000);
+  lastUpdateTime = currentTime;
+  
+  sendTimerUpdateToRenderer();
+}
+
 function createAppIcon(): Electron.NativeImage {
   const size = 256; // Большой размер для иконки приложения
   const canvas = createCanvas(size, size);
@@ -294,9 +410,9 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  // Обработчик обновлений состояния таймера
+  // Обработчик обновлений состояния таймера (для обратной совместимости с уведомлениями)
   ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
-    timerState = state;
+    timerState.isAlerting = state.isAlerting;
     
     if (state.isAlerting) {
       startBlinking();
@@ -305,6 +421,23 @@ app.whenReady().then(() => {
     }
     
     updateTrayIcon();
+  });
+
+  // Обработчики команд таймера от renderer
+  ipcMain.on('timer-start', (_event, seconds: number) => {
+    startTimer(seconds);
+  });
+
+  ipcMain.on('timer-stop', () => {
+    stopTimer();
+  });
+
+  ipcMain.on('timer-pause-resume', () => {
+    pauseResumeTimer();
+  });
+
+  ipcMain.on('timer-adjust', (_event, seconds: number) => {
+    adjustTimerTime(seconds);
   });
 
   // Обработчик сворачивания окна в трей

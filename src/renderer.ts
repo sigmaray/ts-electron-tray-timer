@@ -1,15 +1,23 @@
-let timerInterval: NodeJS.Timeout | null = null;
 let remainingSeconds: number = 0;
 let audioContext: AudioContext | null = null;
 let audioInterval: NodeJS.Timeout | null = null;
 let notification: Notification | null = null;
 let isPaused: boolean = false;
+let isRunning: boolean = false;
 
 // Типы для electronAPI
 interface ElectronAPI {
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
   minimizeWindow: () => void;
   closeApp: () => void;
+  startTimer: (seconds: number) => void;
+  stopTimer: () => void;
+  pauseResumeTimer: () => void;
+  adjustTimerTime: (seconds: number) => void;
+  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean }) => void) => void;
+  onTimerFinished: (callback: () => void) => void;
+  removeTimerUpdateListener: () => void;
+  removeTimerFinishedListener: () => void;
 }
 
 function sendTimerUpdate(): void {
@@ -17,9 +25,9 @@ function sendTimerUpdate(): void {
   if (electronAPI) {
     electronAPI.updateTimerState({
       seconds: remainingSeconds,
-      isRunning: timerInterval !== null && !isPaused,
+      isRunning: isRunning,
       isAlerting: notification !== null,
-      isPaused: isPaused && timerInterval !== null
+      isPaused: isPaused
     });
   }
 }
@@ -39,22 +47,17 @@ function updateDisplay(): void {
 
 function adjustTime(seconds: number): void {
   // Кнопки работают только если таймер запущен (включая паузу)
-  if (!timerInterval) return;
+  if (!isRunning && !isPaused) return;
   
-  remainingSeconds += seconds;
-  
-  // Не позволяем времени стать отрицательным
-  if (remainingSeconds < 0) {
-    remainingSeconds = 0;
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    electronAPI.adjustTimerTime(seconds);
   }
-  
-  updateDisplay();
-  sendTimerUpdate();
 }
 
 function updateTimeAdjustButtons(): void {
   // Кнопки активны только если таймер запущен (включая паузу)
-  const isActive = timerInterval !== null;
+  const isActive = isRunning || isPaused;
   
   const buttons = [
     'adjustMinus1h', 'adjustMinus10m', 'adjustMinus5m', 'adjustMinus1m',
@@ -119,10 +122,6 @@ function startTimer(): void {
     return;
   }
 
-  remainingSeconds = seconds;
-  isPaused = false;
-  updateDisplay();
-
   const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
   const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
@@ -134,73 +133,30 @@ function startTimer(): void {
   input.disabled = true;
   if (status) status.textContent = 'Таймер запущен...';
 
-  timerInterval = setInterval(() => {
-    if (!isPaused) {
-      remainingSeconds--;
-      updateDisplay();
-      sendTimerUpdate();
-
-      if (remainingSeconds <= 0) {
-        stopTimer();
-        showNotification();
-        playAlarmSound();
-        sendTimerUpdate();
-      }
-    }
-  }, 1000);
-
-  // Обновляем иконку трея сразу после создания интервала
-  sendTimerUpdate();
-  // Обновляем состояние кнопок изменения времени после установки интервала
-  updateTimeAdjustButtons();
+  // Отправляем команду в main процесс
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    electronAPI.startTimer(seconds);
+  }
 }
 
 function pauseResumeTimer(): void {
-  if (!timerInterval) return;
+  if (!isRunning && !isPaused) return;
 
-  isPaused = !isPaused;
-
-  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
-  const status = document.getElementById('status');
-
-  if (pauseBtn) {
-    pauseBtn.textContent = isPaused ? 'Возобновить' : 'Пауза';
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    electronAPI.pauseResumeTimer();
   }
-
-  if (status) {
-    status.textContent = isPaused ? 'Таймер на паузе' : 'Таймер запущен...';
-  }
-
-  updateTimeAdjustButtons();
-  sendTimerUpdate();
 }
 
 function stopTimer(): void {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    electronAPI.stopTimer();
   }
-
-  remainingSeconds = 0;
-  isPaused = false;
-  updateDisplay();
-
-  const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-  const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
-  const input = document.getElementById('secondsInput') as HTMLInputElement;
-  const status = document.getElementById('status');
-
-  if (startBtn) startBtn.disabled = false;
-  if (stopBtn) stopBtn.disabled = true;
-  if (pauseBtn) {
-    pauseBtn.disabled = true;
-    pauseBtn.textContent = 'Пауза';
-  }
-  if (input) input.disabled = false;
-  if (status) status.textContent = 'Таймер остановлен';
-  updateTimeAdjustButtons();
-
+  
+  // UI обновится через слушатель onTimerUpdate
+  
   // Останавливаем звук если он играет
   stopAlarmSound();
   // Закрываем уведомление если оно активно
@@ -339,6 +295,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Инициализируем состояние кнопок изменения времени
   updateTimeAdjustButtons();
+
+  // Подключаем слушатели обновлений от main процесса
+  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  if (electronAPI) {
+    // Слушаем обновления таймера
+    electronAPI.onTimerUpdate((state) => {
+      remainingSeconds = state.seconds;
+      isRunning = state.isRunning;
+      isPaused = state.isPaused;
+      
+      updateDisplay();
+      updateTimeAdjustButtons();
+      
+      // Обновляем UI кнопок
+      const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
+      const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
+      const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
+      const input = document.getElementById('secondsInput') as HTMLInputElement;
+      const status = document.getElementById('status');
+      
+      if (startBtn) startBtn.disabled = state.isRunning || state.isPaused;
+      if (stopBtn) stopBtn.disabled = !state.isRunning && !state.isPaused;
+      if (pauseBtn) {
+        pauseBtn.disabled = !state.isRunning && !state.isPaused;
+        pauseBtn.textContent = state.isPaused ? 'Возобновить' : 'Пауза';
+      }
+      if (input) input.disabled = state.isRunning || state.isPaused;
+      if (status) {
+        status.textContent = state.isPaused ? 'Таймер на паузе' : 
+                           (state.isRunning ? 'Таймер запущен...' : 'Таймер остановлен');
+      }
+    });
+    
+    // Слушаем завершение таймера
+    electronAPI.onTimerFinished(() => {
+      stopTimer();
+      showNotification();
+      playAlarmSound();
+      sendTimerUpdate();
+    });
+  }
 
   // Обработка Enter в поле ввода
   const input = document.getElementById('secondsInput') as HTMLInputElement;
