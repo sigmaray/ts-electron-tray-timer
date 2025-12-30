@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, screen } from 'electron';
 import * as path from 'path';
 import { createCanvas } from 'canvas';
 
@@ -349,9 +349,22 @@ function createAppIcon(): Electron.NativeImage {
 function createWindow(): void {
   const appIcon = createAppIcon();
   
+  // Получаем основной монитор
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  const { x, y } = primaryDisplay.workArea;
+  
+  // Вычисляем позицию для центрирования окна на основном мониторе
+  const windowWidth = 800;
+  const windowHeight = 900;
+  const windowX = x + Math.floor((width - windowWidth) / 2);
+  const windowY = y + Math.floor((height - windowHeight) / 2);
+  
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 900,
+    width: windowWidth,
+    height: windowHeight,
+    x: windowX,
+    y: windowY,
     icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
