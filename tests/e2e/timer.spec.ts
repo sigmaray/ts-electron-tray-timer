@@ -1,285 +1,257 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, _electron as electron } from '@playwright/test';
 import * as path from 'path';
 
 test.describe('Timer Application', () => {
-  test.beforeEach(async ({ page }) => {
-    // Мокируем Electron API перед загрузкой страницы
-    await page.addInitScript(() => {
-      // Состояние таймера для мока
-      let timerState = {
-        seconds: 0,
-        isRunning: false,
-        isPaused: false
-      };
-      
-      let timerInterval: any = null;
-      const callbacks: Array<(state: any) => void> = [];
-      
-      const notifyListeners = () => {
-        callbacks.forEach(cb => cb({ ...timerState }));
-      };
-      
-      // Создаем мок для Electron API
-      (window as any).electronAPI = {
-        updateTimerState: () => {},
-        minimizeWindow: () => {},
-        closeApp: () => {},
-        startTimer: (seconds: number) => {
-          timerState.seconds = seconds;
-          timerState.isRunning = true;
-          timerState.isPaused = false;
-          
-          if (timerInterval) {
-            clearInterval(timerInterval);
-          }
-          
-          timerInterval = setInterval(() => {
-            if (!timerState.isPaused && timerState.seconds > 0) {
-              timerState.seconds--;
-              notifyListeners();
-              
-              if (timerState.seconds <= 0) {
-                timerState.seconds = 0;
-                timerState.isRunning = false;
-                clearInterval(timerInterval);
-                timerInterval = null;
-                notifyListeners();
-              }
-            }
-          }, 1000);
-          
-          notifyListeners();
-        },
-        stopTimer: () => {
-          if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-          }
-          timerState.seconds = 0;
-          timerState.isRunning = false;
-          timerState.isPaused = false;
-          notifyListeners();
-        },
-        pauseResumeTimer: () => {
-          if (!timerState.isRunning) return;
-          timerState.isPaused = !timerState.isPaused;
-          notifyListeners();
-        },
-        adjustTimerTime: (seconds: number) => {
-          if (!timerState.isRunning && !timerState.isPaused) return;
-          timerState.seconds = Math.max(0, timerState.seconds + seconds);
-          notifyListeners();
-        },
-        onTimerUpdate: (callback: (state: any) => void) => {
-          callbacks.push(callback);
-          // Сразу вызываем callback с текущим состоянием
-          callback({ ...timerState });
-        },
-        onTimerFinished: (callback: () => void) => {
-          // Мок для завершения таймера
-        },
-        removeTimerUpdateListener: () => {
-          callbacks.length = 0;
-        },
-        removeTimerFinishedListener: () => {},
-      };
+  let electronApp: any;
+  let window: any;
+
+  test.beforeAll(async () => {
+    // Запускаем реальное Electron приложение
+    const electronPath = require('electron');
+    const mainPath = path.join(__dirname, '../../dist/main.js');
+    
+    electronApp = await electron.launch({
+      executablePath: electronPath,
+      args: [mainPath],
+      env: {
+        ...process.env,
+        ELECTRON_DISABLE_SANDBOX: '1',
+      },
     });
 
+    // Получаем первое окно приложения
+    window = await electronApp.firstWindow();
+    
     // Ждем загрузки приложения
-    const htmlPath = path.join(__dirname, '../../dist/index.html');
-    await page.goto(`file://${htmlPath}`);
-    await page.waitForLoadState('domcontentloaded');
+    await window.waitForLoadState('domcontentloaded');
     
     // Ждем появления основных элементов
-    await page.waitForSelector('#timerDisplay', { timeout: 10000 });
-    await page.waitForSelector('#secondsInput', { timeout: 10000 });
+    await window.waitForSelector('#timerDisplay', { timeout: 10000 });
+    await window.waitForSelector('#secondsInput', { timeout: 10000 });
     
     // Ждем инициализации приложения
-    await page.waitForTimeout(1000);
+    await window.waitForTimeout(1000);
   });
 
-  test('должен отображать начальное состояние', async ({ page }) => {
+  test.afterAll(async () => {
+    // Закрываем Electron приложение после всех тестов
+    if (electronApp) {
+      await electronApp.close();
+    }
+  });
+
+  test.beforeEach(async () => {
+    // Перед каждым тестом убеждаемся, что окно видимо
+    if (window) {
+      await window.bringToFront();
+      
+      // Сбрасываем состояние таймера, если он запущен
+      const stopBtn = window.locator('#stopBtn');
+      const isStopEnabled = await stopBtn.isEnabled().catch(() => false);
+      if (isStopEnabled) {
+        await stopBtn.click();
+        await window.waitForTimeout(300);
+      }
+    }
+  });
+
+  test('должен отображать начальное состояние', async () => {
     // Проверяем, что таймер показывает 00:00
-    await expect(page.locator('#timerDisplay')).toHaveText('00:00');
+    await expect(window.locator('#timerDisplay')).toHaveText('00:00');
     
     // Проверяем, что кнопка запуска активна
-    await expect(page.locator('#startBtn')).toBeEnabled();
+    await expect(window.locator('#startBtn')).toBeEnabled();
     
     // Проверяем, что кнопки паузы и остановки неактивны
-    await expect(page.locator('#pauseBtn')).toBeDisabled();
-    await expect(page.locator('#stopBtn')).toBeDisabled();
+    await expect(window.locator('#pauseBtn')).toBeDisabled();
+    await expect(window.locator('#stopBtn')).toBeDisabled();
   });
 
-  test('должен запускать таймер с заданным временем', async ({ page }) => {
+  test('должен запускать таймер с заданным временем', async () => {
     // Устанавливаем время 5 секунд для быстрого теста
-    await page.fill('#secondsInput', '5s');
+    await window.fill('#secondsInput', '5s');
     
     // Запускаем таймер
-    await page.click('#startBtn');
+    await window.click('#startBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Проверяем, что кнопка запуска неактивна
-    await expect(page.locator('#startBtn')).toBeDisabled();
+    await expect(window.locator('#startBtn')).toBeDisabled();
     
     // Проверяем, что кнопки паузы и остановки активны
-    await expect(page.locator('#pauseBtn')).toBeEnabled();
-    await expect(page.locator('#stopBtn')).toBeEnabled();
+    await expect(window.locator('#pauseBtn')).toBeEnabled();
+    await expect(window.locator('#stopBtn')).toBeEnabled();
     
     // Проверяем, что поле ввода заблокировано
-    await expect(page.locator('#secondsInput')).toBeDisabled();
+    await expect(window.locator('#secondsInput')).toBeDisabled();
     
     // Проверяем, что таймер начал отсчет (не 00:00)
-    await page.waitForTimeout(500);
-    const timerText = await page.locator('#timerDisplay').textContent();
+    await window.waitForTimeout(500);
+    const timerText = await window.locator('#timerDisplay').textContent();
     expect(timerText).not.toBe('00:00');
   });
 
-  test('должен останавливать таймер', async ({ page }) => {
+  test('должен останавливать таймер', async () => {
     // Запускаем таймер
-    await page.fill('#secondsInput', '10s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '10s');
+    await window.click('#startBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Ждем немного
-    await page.waitForTimeout(500);
+    await window.waitForTimeout(500);
     
     // Останавливаем таймер
-    await page.click('#stopBtn');
+    await window.click('#stopBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Проверяем, что таймер остановлен
-    await expect(page.locator('#timerDisplay')).toHaveText('00:00');
+    await expect(window.locator('#timerDisplay')).toHaveText('00:00');
     
     // Проверяем, что кнопка запуска активна
-    await expect(page.locator('#startBtn')).toBeEnabled();
+    await expect(window.locator('#startBtn')).toBeEnabled();
     
     // Проверяем, что поле ввода разблокировано
-    await expect(page.locator('#secondsInput')).toBeEnabled();
+    await expect(window.locator('#secondsInput')).toBeEnabled();
   });
 
-  test('должен ставить таймер на паузу и возобновлять', async ({ page }) => {
+  test('должен ставить таймер на паузу и возобновлять', async () => {
     // Запускаем таймер
-    await page.fill('#secondsInput', '30s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '30s');
+    await window.click('#startBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(500);
+    await window.waitForTimeout(500);
     
     // Ставим на паузу
-    await page.click('#pauseBtn');
+    await window.click('#pauseBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Проверяем, что кнопка показывает "Возобновить"
-    await expect(page.locator('#pauseBtn')).toHaveText('Возобновить');
+    await expect(window.locator('#pauseBtn')).toHaveText('Возобновить');
     
     // Запоминаем время на паузе
-    const pausedTime = await page.locator('#timerDisplay').textContent();
+    const pausedTime = await window.locator('#timerDisplay').textContent();
     
     // Ждем немного - время не должно измениться
-    await page.waitForTimeout(1000);
-    await expect(page.locator('#timerDisplay')).toHaveText(pausedTime!);
+    await window.waitForTimeout(1000);
+    await expect(window.locator('#timerDisplay')).toHaveText(pausedTime!);
     
     // Возобновляем
-    await page.click('#pauseBtn');
+    await window.click('#pauseBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Проверяем, что кнопка показывает "Пауза"
-    await expect(page.locator('#pauseBtn')).toHaveText('Пауза');
+    await expect(window.locator('#pauseBtn')).toHaveText('Пауза');
     
     // Ждем немного - время должно измениться
-    await page.waitForTimeout(1500);
-    const resumedTime = await page.locator('#timerDisplay').textContent();
+    await window.waitForTimeout(1500);
+    const resumedTime = await window.locator('#timerDisplay').textContent();
     expect(resumedTime).not.toBe(pausedTime);
   });
 
-  test('должен изменять время через кнопки input когда таймер не запущен', async ({ page }) => {
-    // Проверяем начальное значение
-    await expect(page.locator('#secondsInput')).toHaveValue('1m');
+  test('должен изменять время через кнопки input когда таймер не запущен', async () => {
+    // Убеждаемся, что таймер остановлен
+    const stopBtn = window.locator('#stopBtn');
+    if (await stopBtn.isEnabled()) {
+      await stopBtn.click();
+      await window.waitForTimeout(300);
+    }
+    
+    // Устанавливаем начальное значение
+    await window.fill('#secondsInput', '1m');
+    await window.waitForTimeout(100);
     
     // Кнопки должны быть активны когда таймер не запущен
-    await expect(page.locator('#inputAdjustPlus1m')).toBeEnabled();
+    await expect(window.locator('#inputAdjustPlus1m')).toBeEnabled();
     
     // Добавляем 1 минуту
-    await page.click('#inputAdjustPlus1m');
-    await expect(page.locator('#secondsInput')).toHaveValue('2m');
+    await window.click('#inputAdjustPlus1m');
+    await window.waitForTimeout(100);
+    await expect(window.locator('#secondsInput')).toHaveValue('2m');
     
     // Добавляем еще 5 минут
-    await page.click('#inputAdjustPlus5m');
-    await expect(page.locator('#secondsInput')).toHaveValue('7m');
+    await window.click('#inputAdjustPlus5m');
+    await window.waitForTimeout(100);
+    await expect(window.locator('#secondsInput')).toHaveValue('7m');
     
     // Вычитаем 2 минуты
-    await page.click('#inputAdjustMinus1m');
-    await page.click('#inputAdjustMinus1m');
-    await expect(page.locator('#secondsInput')).toHaveValue('5m');
+    await window.click('#inputAdjustMinus1m');
+    await window.waitForTimeout(100);
+    await window.click('#inputAdjustMinus1m');
+    await window.waitForTimeout(100);
+    await expect(window.locator('#secondsInput')).toHaveValue('5m');
   });
 
-  test('должен блокировать кнопки input когда таймер запущен', async ({ page }) => {
+  test('должен блокировать кнопки input когда таймер запущен', async () => {
     // Запускаем таймер
-    await page.fill('#secondsInput', '10s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '10s');
+    await window.click('#startBtn');
+    
+    // Ждем обновления UI
+    await window.waitForTimeout(300);
     
     // Кнопки input должны быть заблокированы
-    await expect(page.locator('#inputAdjustPlus1m')).toBeDisabled();
-    await expect(page.locator('#inputAdjustMinus1m')).toBeDisabled();
+    await expect(window.locator('#inputAdjustPlus1m')).toBeDisabled();
+    await expect(window.locator('#inputAdjustMinus1m')).toBeDisabled();
   });
 
-  test('должен изменять время запущенного таймера через кнопки изменения времени', async ({ page }) => {
+  test('должен изменять время запущенного таймера через кнопки изменения времени', async () => {
     // Запускаем таймер на 30 секунд
-    await page.fill('#secondsInput', '30s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '30s');
+    await window.click('#startBtn');
     
-    await page.waitForTimeout(500);
+    await window.waitForTimeout(500);
     
     // Запоминаем текущее время
-    const initialTime = await page.locator('#timerDisplay').textContent();
+    const initialTime = await window.locator('#timerDisplay').textContent();
     
     // Добавляем 1 минуту (60 секунд)
-    await page.click('#adjustPlus1m');
+    await window.click('#adjustPlus1m');
     
     // Ждем обновления
-    await page.waitForTimeout(200);
+    await window.waitForTimeout(200);
     
     // Время должно увеличиться
-    const newTime = await page.locator('#timerDisplay').textContent();
+    const newTime = await window.locator('#timerDisplay').textContent();
     expect(newTime).not.toBe(initialTime);
     
     // Вычитаем 30 секунд
-    await page.click('#adjustMinus1m');
-    await page.waitForTimeout(200);
+    await window.click('#adjustMinus1m');
+    await window.waitForTimeout(200);
   });
 
-  test('должен использовать quick links для установки времени', async ({ page }) => {
+  test('должен использовать quick links для установки времени', async () => {
     // Quick links должны быть активны когда таймер не запущен
-    const quickLink = page.locator('.quick-link[data-time="5m"]');
+    const quickLink = window.locator('.quick-link[data-time="5m"]');
     await expect(quickLink).toBeVisible();
     
     // Кликаем на quick link
     await quickLink.click();
     
     // Проверяем, что значение в input изменилось
-    await expect(page.locator('#secondsInput')).toHaveValue('5m');
+    await expect(window.locator('#secondsInput')).toHaveValue('5m');
   });
 
-  test('должен блокировать quick links когда таймер запущен', async ({ page }) => {
+  test('должен блокировать quick links когда таймер запущен', async () => {
     // Запускаем таймер
-    await page.fill('#secondsInput', '10s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '10s');
+    await window.click('#startBtn');
     
     // Ждем обновления UI
-    await page.waitForTimeout(300);
+    await window.waitForTimeout(300);
     
     // Quick links должны быть неактивны (opacity: 0.5 или pointer-events: none)
-    const quickLink = page.locator('.quick-link[data-time="5m"]');
+    const quickLink = window.locator('.quick-link[data-time="5m"]');
     const pointerEvents = await quickLink.evaluate((el) => window.getComputedStyle(el).pointerEvents);
     const opacity = await quickLink.evaluate((el) => window.getComputedStyle(el).opacity);
     
@@ -288,13 +260,13 @@ test.describe('Timer Application', () => {
     expect(isDisabled).toBe(true);
     
     // Попытка кликнуть не должна изменить значение
-    const currentValue = await page.locator('#secondsInput').inputValue();
+    const currentValue = await window.locator('#secondsInput').inputValue();
     await quickLink.click({ force: true });
-    await page.waitForTimeout(100);
-    await expect(page.locator('#secondsInput')).toHaveValue(currentValue);
+    await window.waitForTimeout(100);
+    await expect(window.locator('#secondsInput')).toHaveValue(currentValue);
   });
 
-  test('должен правильно парсить различные форматы времени', async ({ page }) => {
+  test('должен правильно парсить различные форматы времени', async () => {
     // Тестируем разные форматы
     const formats = [
       { input: '60s', expected: '60s' },
@@ -304,66 +276,77 @@ test.describe('Timer Application', () => {
     ];
     
     for (const format of formats) {
-      await page.fill('#secondsInput', format.input);
-      await page.click('#startBtn');
+      await window.fill('#secondsInput', format.input);
+      await window.click('#startBtn');
       
       // Проверяем, что таймер запустился (кнопка запуска неактивна)
-      await expect(page.locator('#startBtn')).toBeDisabled();
+      await expect(window.locator('#startBtn')).toBeDisabled();
       
       // Останавливаем для следующего теста
-      await page.click('#stopBtn');
-      await page.waitForTimeout(100);
+      await window.click('#stopBtn');
+      await window.waitForTimeout(100);
     }
   });
 
-  test('должен показывать статус таймера', async ({ page }) => {
+  test('должен показывать статус таймера', async () => {
     // Проверяем начальный статус
-    const status = page.locator('#status');
+    const status = window.locator('#status');
     
     // Запускаем таймер
-    await page.fill('#secondsInput', '10s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '10s');
+    await window.click('#startBtn');
+    
+    // Ждем обновления UI
+    await window.waitForTimeout(300);
     
     // Проверяем статус "Таймер запущен..."
     await expect(status).toContainText('Таймер запущен');
     
     // Ставим на паузу
-    await page.click('#pauseBtn');
+    await window.click('#pauseBtn');
+    await window.waitForTimeout(300);
     await expect(status).toContainText('Таймер на паузе');
     
     // Останавливаем
-    await page.click('#stopBtn');
+    await window.click('#stopBtn');
+    await window.waitForTimeout(300);
     await expect(status).toContainText('Таймер остановлен');
   });
 
-  test('должен блокировать кнопки изменения времени когда таймер не запущен', async ({ page }) => {
+  test('должен блокировать кнопки изменения времени когда таймер не запущен', async () => {
     // Кнопки изменения времени запущенного таймера должны быть заблокированы
-    await expect(page.locator('#adjustPlus1m')).toBeDisabled();
-    await expect(page.locator('#adjustMinus1m')).toBeDisabled();
+    await expect(window.locator('#adjustPlus1m')).toBeDisabled();
+    await expect(window.locator('#adjustMinus1m')).toBeDisabled();
     
     // Запускаем таймер
-    await page.fill('#secondsInput', '10s');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '10s');
+    await window.click('#startBtn');
+    
+    // Ждем обновления UI
+    await window.waitForTimeout(300);
     
     // Теперь кнопки должны быть активны
-    await expect(page.locator('#adjustPlus1m')).toBeEnabled();
-    await expect(page.locator('#adjustMinus1m')).toBeEnabled();
+    await expect(window.locator('#adjustPlus1m')).toBeEnabled();
+    await expect(window.locator('#adjustMinus1m')).toBeEnabled();
   });
 
-  test('должен работать с большими значениями времени', async ({ page }) => {
+  test('должен работать с большими значениями времени', async () => {
     // Устанавливаем большое время (2 часа)
-    await page.fill('#secondsInput', '2h');
-    await page.click('#startBtn');
+    await window.fill('#secondsInput', '2h');
+    await window.click('#startBtn');
+    
+    // Ждем обновления UI
+    await window.waitForTimeout(300);
     
     // Проверяем, что таймер запустился
-    await expect(page.locator('#startBtn')).toBeDisabled();
+    await expect(window.locator('#startBtn')).toBeDisabled();
     
     // Проверяем, что отображается время (не 00:00)
-    const timerText = await page.locator('#timerDisplay').textContent();
+    const timerText = await window.locator('#timerDisplay').textContent();
     expect(timerText).not.toBe('00:00');
     
     // Останавливаем
-    await page.click('#stopBtn');
+    await window.click('#stopBtn');
   });
 });
 
