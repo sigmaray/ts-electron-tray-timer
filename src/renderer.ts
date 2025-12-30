@@ -70,6 +70,69 @@ function updateTimeAdjustButtons(): void {
       button.disabled = !isActive;
     }
   });
+  
+  // Обновляем состояние кнопок изменения input
+  updateInputAdjustButtons();
+}
+
+function adjustInputTime(seconds: number): void {
+  // Кнопки работают только если таймер НЕ запущен
+  if (isRunning || isPaused) return;
+  
+  const input = document.getElementById('secondsInput') as HTMLInputElement;
+  if (!input) return;
+  
+  const currentValue = input.value.trim();
+  const currentSeconds = parseTimeInput(currentValue);
+  
+  if (currentSeconds === null) {
+    // Если не удалось распарсить, устанавливаем минимальное значение
+    if (seconds > 0) {
+      input.value = formatTimeInput(seconds);
+    }
+    return;
+  }
+  
+  const newSeconds = currentSeconds + seconds;
+  
+  // Не позволяем времени стать отрицательным
+  if (newSeconds < 0) {
+    return;
+  }
+  
+  input.value = formatTimeInput(newSeconds);
+}
+
+function formatTimeInput(seconds: number): string {
+  if (seconds <= 0) {
+    return '1s'; // Минимальное значение
+  }
+  if (seconds < 60) {
+    return `${seconds}s`;
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m`;
+  } else {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours}h`;
+  }
+}
+
+function updateInputAdjustButtons(): void {
+  // Кнопки активны только если таймер НЕ запущен
+  const isActive = !isRunning && !isPaused;
+  
+  const buttons = [
+    'inputAdjustMinus10m', 'inputAdjustMinus5m', 'inputAdjustMinus1m',
+    'inputAdjustPlus1m', 'inputAdjustPlus5m', 'inputAdjustPlus10m'
+  ];
+  
+  buttons.forEach(buttonId => {
+    const button = document.getElementById(buttonId) as HTMLButtonElement;
+    if (button) {
+      button.disabled = !isActive;
+    }
+  });
 }
 
 function parseTimeInput(inputValue: string): number | null {
@@ -295,6 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Инициализируем состояние кнопок изменения времени
   updateTimeAdjustButtons();
+  updateInputAdjustButtons();
 
   // Подключаем слушатели обновлений от main процесса
   const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
@@ -326,6 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
         status.textContent = state.isPaused ? 'Таймер на паузе' : 
                            (state.isRunning ? 'Таймер запущен...' : 'Таймер остановлен');
       }
+      
+      // Обновляем состояние кнопок изменения input
+      updateInputAdjustButtons();
     });
     
     // Слушаем завершение таймера
@@ -388,6 +455,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const button = document.getElementById(id);
     if (button) {
       button.addEventListener('click', () => adjustTime(seconds));
+    }
+  });
+
+  // Обработчики кнопок изменения времени в input
+  const inputAdjustButtons = [
+    { id: 'inputAdjustMinus10m', seconds: -600 },
+    { id: 'inputAdjustMinus5m', seconds: -300 },
+    { id: 'inputAdjustMinus1m', seconds: -60 },
+    { id: 'inputAdjustPlus1m', seconds: 60 },
+    { id: 'inputAdjustPlus5m', seconds: 300 },
+    { id: 'inputAdjustPlus10m', seconds: 600 }
+  ];
+
+  inputAdjustButtons.forEach(({ id, seconds }) => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.addEventListener('click', () => adjustInputTime(seconds));
     }
   });
 

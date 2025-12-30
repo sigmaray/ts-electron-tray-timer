@@ -54,6 +54,37 @@
             align-items: center;
             justify-content: center;
         }
+        .input-with-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+        .input-adjust-btn {
+            padding: 10px 14px;
+            font-size: 1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 50px;
+        }
+        .input-adjust-btn:hover:not(:disabled) {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .input-adjust-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .input-adjust-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
         input[type="number"] {
             padding: 12px 20px;
             font-size: 1.2em;
@@ -209,7 +240,15 @@
             <div class="timer-controls">
                 <div class="input-group">
                     <label for="secondsInput">Время:</label>
-                    <input type="text" id="secondsInput" value="1m" placeholder="60s, 1m, 1h, 1d">
+                    <div class="input-with-buttons">
+                        <button id="inputAdjustMinus10m" class="input-adjust-btn" disabled>-10m</button>
+                        <button id="inputAdjustMinus5m" class="input-adjust-btn" disabled>-5m</button>
+                        <button id="inputAdjustMinus1m" class="input-adjust-btn" disabled>-1m</button>
+                        <input type="text" id="secondsInput" value="1m" placeholder="60s, 1m, 1h, 1d">
+                        <button id="inputAdjustPlus1m" class="input-adjust-btn" disabled>+1m</button>
+                        <button id="inputAdjustPlus5m" class="input-adjust-btn" disabled>+5m</button>
+                        <button id="inputAdjustPlus10m" class="input-adjust-btn" disabled>+10m</button>
+                    </div>
                 </div>
                 <div class="quick-links">
                     <a href="#" class="quick-link" data-time="1m">1 минута</a>
