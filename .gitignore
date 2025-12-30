@@ -3,3 +3,8 @@ dist/
 *.log
 .DS_Store
 release/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
