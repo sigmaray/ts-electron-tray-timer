@@ -114,7 +114,17 @@ function formatTimeInput(seconds: number): string {
     return `${minutes}m`;
   } else {
     const hours = Math.floor(seconds / 3600);
-    return `${hours}h`;
+    const remainingSeconds = seconds % 3600;
+    if (remainingSeconds === 0) {
+      return `${hours}h`;
+    } else {
+      const minutes = Math.floor(remainingSeconds / 60);
+      if (minutes === 0) {
+        return `${hours}h`;
+      } else {
+        return `${hours}h ${minutes}m`;
+      }
+    }
   }
 }
 
@@ -146,26 +156,39 @@ function parseTimeInput(inputValue: string): number | null {
     return seconds > 0 ? seconds : null;
   }
 
-  // Парсим форматы с суффиксами: 1m, 1h, 1d
-  const timeMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*([smhd])$/i);
-  if (timeMatch) {
-    const value = parseFloat(timeMatch[1]);
-    const unit = timeMatch[2].toLowerCase();
-
-    if (value <= 0 || isNaN(value)) return null;
-
+  // Парсим комбинированные форматы типа "1h 30m", "2h 15m 30s"
+  let totalSeconds = 0;
+  let hasMatch = false;
+  
+  // Паттерн для поиска всех единиц времени в строке
+  const timePattern = /(\d+(?:\.\d+)?)\s*([smhd])/gi;
+  let match;
+  
+  while ((match = timePattern.exec(trimmed)) !== null) {
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    
+    if (value <= 0 || isNaN(value)) continue;
+    hasMatch = true;
+    
     switch (unit) {
       case 's':
-        return Math.floor(value);
+        totalSeconds += Math.floor(value);
+        break;
       case 'm':
-        return Math.floor(value * 60);
+        totalSeconds += Math.floor(value * 60);
+        break;
       case 'h':
-        return Math.floor(value * 3600);
+        totalSeconds += Math.floor(value * 3600);
+        break;
       case 'd':
-        return Math.floor(value * 86400); // 24 * 60 * 60
-      default:
-        return null;
+        totalSeconds += Math.floor(value * 86400); // 24 * 60 * 60
+        break;
     }
+  }
+  
+  if (hasMatch && totalSeconds > 0) {
+    return totalSeconds;
   }
 
   return null;
