@@ -143,6 +143,28 @@ function updateInputAdjustButtons(): void {
       button.disabled = !isActive;
     }
   });
+  
+  // Обновляем состояние quick-links
+  updateQuickLinks();
+}
+
+function updateQuickLinks(): void {
+  // Ссылки активны только если таймер НЕ запущен
+  const isActive = !isRunning && !isPaused;
+  
+  const quickLinks = document.querySelectorAll('.quick-link');
+  quickLinks.forEach(link => {
+    const linkElement = link as HTMLElement;
+    if (isActive) {
+      linkElement.style.opacity = '1';
+      linkElement.style.cursor = 'pointer';
+      linkElement.style.pointerEvents = 'auto';
+    } else {
+      linkElement.style.opacity = '0.5';
+      linkElement.style.cursor = 'not-allowed';
+      linkElement.style.pointerEvents = 'none';
+    }
+  });
 }
 
 function parseTimeInput(inputValue: string): number | null {
@@ -414,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                            (state.isRunning ? 'Таймер запущен...' : 'Таймер остановлен');
       }
       
-      // Обновляем состояние кнопок изменения input
+      // Обновляем состояние кнопок изменения input (включая quick-links)
       updateInputAdjustButtons();
     });
     
@@ -503,6 +525,10 @@ document.addEventListener('DOMContentLoaded', () => {
   quickLinks.forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
+      // Не работаем если таймер запущен или на паузе
+      if (isRunning || isPaused) {
+        return;
+      }
       const timeValue = (link as HTMLElement).getAttribute('data-time');
       if (timeValue) {
         const input = document.getElementById('secondsInput') as HTMLInputElement;
@@ -512,6 +538,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+  
+  // Обновляем состояние quick-links при инициализации
+  updateQuickLinks();
 
   // Обработчики кнопок управления приложением
   const minimizeBtn = document.getElementById('minimizeBtn');
