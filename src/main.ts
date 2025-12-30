@@ -13,6 +13,11 @@ declare global {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+// Экспортируем tray для тестирования (только в development режиме)
+if (process.env.NODE_ENV === 'test' || process.env.ELECTRON_DISABLE_SANDBOX) {
+  (global as any).__tray__ = () => tray;
+}
 let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean } = {
   seconds: 0,
   isRunning: false,
@@ -457,6 +462,20 @@ app.whenReady().then(() => {
   ipcMain.on('minimize-window', () => {
     if (mainWindow) {
       mainWindow.hide();
+      updateTrayMenu();
+    }
+  });
+
+  // Обработчик эмуляции клика по иконке трея (для тестов)
+  ipcMain.on('tray-click', () => {
+    if (tray && mainWindow) {
+      // Эмулируем клик по трею - вызываем ту же логику, что и при реальном клике
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
       updateTrayMenu();
     }
   });

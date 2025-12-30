@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => {
     ipcRenderer.send('minimize-window');
   },
+  clickTray: () => {
+    ipcRenderer.send('tray-click');
+  },
   closeApp: () => {
     ipcRenderer.send('close-app');
   },

@@ -348,5 +348,128 @@ test.describe('Timer Application', () => {
     // Останавливаем
     await window.click('#stopBtn');
   });
+
+  test('должен сворачивать окно в трей', async () => {
+    // Проверяем, что окно изначально видимо
+    const isVisibleBefore = await electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return windows.length > 0 && windows[0].isVisible();
+    });
+    expect(isVisibleBefore).toBe(true);
+
+    // Эмулируем клик по иконке трея для сворачивания окна
+    await electronApp.evaluate(() => {
+      const getTray = (global as any).__tray__;
+      if (getTray) {
+        const tray = getTray();
+        if (tray) {
+          // Эмулируем событие клика по трею
+          tray.emit('click');
+        }
+      }
+    });
+
+    // Ждем, пока окно скроется
+    await window.waitForTimeout(500);
+
+    // Проверяем, что окно скрыто
+    const isVisibleAfter = await electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return windows.length > 0 && windows[0].isVisible();
+    });
+    expect(isVisibleAfter).toBe(false);
+  });
+
+  test('должен показывать окно из трея', async () => {
+    // Сначала сворачиваем окно в трей
+    await window.evaluate(() => {
+      (window as any).electronAPI.minimizeWindow();
+    });
+    await window.waitForTimeout(500);
+
+    // Проверяем, что окно скрыто
+    const isVisibleBefore = await electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return windows.length > 0 && windows[0].isVisible();
+    });
+    expect(isVisibleBefore).toBe(false);
+
+    // Эмулируем клик по иконке трея - вызываем событие 'click' напрямую
+    await electronApp.evaluate(() => {
+      const getTray = (global as any).__tray__;
+      if (getTray) {
+        const tray = getTray();
+        if (tray) {
+          // Эмулируем событие клика по трею
+          tray.emit('click');
+        }
+      }
+    });
+
+    // Ждем, пока окно появится
+    await window.waitForTimeout(500);
+
+    // Проверяем, что окно снова видимо
+    const isVisibleAfter = await electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return windows.length > 0 && windows[0].isVisible();
+    });
+    expect(isVisibleAfter).toBe(true);
+
+    // Убеждаемся, что элементы интерфейса доступны
+    await window.waitForSelector('#timerDisplay', { timeout: 5000 });
+  });
+
+  test('должен сохранять состояние при сворачивании и разворачивании', async () => {
+    // Устанавливаем время и запускаем таймер
+    await window.fill('#secondsInput', '30s');
+    await window.click('#startBtn');
+    await window.waitForTimeout(500);
+
+    // Запоминаем состояние таймера
+    const timerTextBefore = await window.locator('#timerDisplay').textContent();
+    const isRunningBefore = await window.locator('#startBtn').isDisabled();
+
+    // Сворачиваем в трей через клик по иконке трея
+    await electronApp.evaluate(() => {
+      const getTray = (global as any).__tray__;
+      if (getTray) {
+        const tray = getTray();
+        if (tray) {
+          tray.emit('click');
+        }
+      }
+    });
+    await window.waitForTimeout(500);
+
+    // Ждем немного (таймер должен продолжать работать)
+    await window.waitForTimeout(1000);
+
+    // Показываем окно обратно через клик по иконке трея
+    await electronApp.evaluate(() => {
+      const getTray = (global as any).__tray__;
+      if (getTray) {
+        const tray = getTray();
+        if (tray) {
+          tray.emit('click');
+        }
+      }
+    });
+    await window.waitForTimeout(500);
+
+    // Ждем загрузки элементов
+    await window.waitForSelector('#timerDisplay', { timeout: 5000 });
+
+    // Проверяем, что таймер продолжает работать
+    const timerTextAfter = await window.locator('#timerDisplay').textContent();
+    const isRunningAfter = await window.locator('#startBtn').isDisabled();
+
+    // Таймер должен продолжать работать (время должно измениться)
+    expect(isRunningAfter).toBe(true);
+    expect(timerTextAfter).not.toBe(timerTextBefore);
+
+    // Останавливаем таймер
+    await window.click('#stopBtn');
+  });
 });
 
