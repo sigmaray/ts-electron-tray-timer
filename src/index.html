@@ -159,10 +159,30 @@
         }
         .time-adjust-buttons {
             display: flex;
+            flex-direction: column;
+            gap: 12px;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        .time-adjust-buttons-label {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+            margin-bottom: 5px;
+        }
+        .time-adjust-buttons-container {
+            display: flex;
             gap: 8px;
             justify-content: center;
             flex-wrap: wrap;
-            margin: 15px 0;
+            width: 100%;
         }
         .time-adjust-btn {
             padding: 8px 16px;
@@ -201,14 +221,17 @@
                 <button id="pauseBtn" disabled>Пауза</button>
                 <button id="stopBtn" disabled>Остановить</button>
                 <div class="time-adjust-buttons">
-                    <button id="adjustMinus1h" class="time-adjust-btn" disabled>-1h</button>
-                    <button id="adjustMinus10m" class="time-adjust-btn" disabled>-10m</button>
-                    <button id="adjustMinus5m" class="time-adjust-btn" disabled>-5m</button>
-                    <button id="adjustMinus1m" class="time-adjust-btn" disabled>-1m</button>
-                    <button id="adjustPlus1m" class="time-adjust-btn" disabled>+1m</button>
-                    <button id="adjustPlus5m" class="time-adjust-btn" disabled>+5m</button>
-                    <button id="adjustPlus10m" class="time-adjust-btn" disabled>+10m</button>
-                    <button id="adjustPlus1h" class="time-adjust-btn" disabled>+1h</button>
+                    <div class="time-adjust-buttons-label">Изменение времени уже запущенного таймера</div>
+                    <div class="time-adjust-buttons-container">
+                        <button id="adjustMinus1h" class="time-adjust-btn" disabled>-1h</button>
+                        <button id="adjustMinus10m" class="time-adjust-btn" disabled>-10m</button>
+                        <button id="adjustMinus5m" class="time-adjust-btn" disabled>-5m</button>
+                        <button id="adjustMinus1m" class="time-adjust-btn" disabled>-1m</button>
+                        <button id="adjustPlus1m" class="time-adjust-btn" disabled>+1m</button>
+                        <button id="adjustPlus5m" class="time-adjust-btn" disabled>+5m</button>
+                        <button id="adjustPlus10m" class="time-adjust-btn" disabled>+10m</button>
+                        <button id="adjustPlus1h" class="time-adjust-btn" disabled>+1h</button>
+                    </div>
                 </div>
                 <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Отключить уведомление</button>
                 <div class="app-controls">
