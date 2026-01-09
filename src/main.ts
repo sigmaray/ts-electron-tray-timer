@@ -88,11 +88,8 @@ function createTextIcon(text: string, isBlinking: boolean = false): Electron.Nat
   if (isBlinking) {
     // Мигание: красный
     bgColor = '#FF0000';
-  } else if (text === '—') {
-    // Прочерк: серый
-    bgColor = '#808080';
   } else {
-    // Активный таймер: фиолетовый
+    // Всегда используем фиолетовый фон (активный таймер и неактивный)
     bgColor = '#7c3aed';
   }
   
