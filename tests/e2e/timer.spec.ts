@@ -25,6 +25,14 @@ test.describe('Timer Application', () => {
     // Ждем загрузки приложения
     await window.waitForLoadState('domcontentloaded');
     
+    // Приложение запускается свернутым в трей, поэтому нужно явно показать окно для тестов
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].show();
+      }
+    });
+    
     // Ждем появления основных элементов
     await window.waitForSelector('#timerDisplay', { timeout: 10000 });
     await window.waitForSelector('#secondsInput', { timeout: 10000 });
@@ -43,6 +51,15 @@ test.describe('Timer Application', () => {
   test.beforeEach(async () => {
     // Перед каждым тестом убеждаемся, что окно видимо
     if (window) {
+      // Явно показываем окно (приложение запускается свернутым в трей)
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].show();
+          windows[0].focus();
+        }
+      });
+      await window.waitForTimeout(200);
       await window.bringToFront();
       
       // Сбрасываем состояние таймера, если он запущен
@@ -350,9 +367,13 @@ test.describe('Timer Application', () => {
   });
 
   test('должен сворачивать окно в трей', async () => {
-    // Проверяем, что окно изначально видимо
+    // Убеждаемся, что окно видимо (перед тестом оно должно быть показано в beforeEach)
     const isVisibleBefore = await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0 && !windows[0].isVisible()) {
+        windows[0].show();
+        windows[0].focus();
+      }
       return windows.length > 0 && windows[0].isVisible();
     });
     expect(isVisibleBefore).toBe(true);
@@ -470,6 +491,45 @@ test.describe('Timer Application', () => {
 
     // Останавливаем таймер
     await window.click('#stopBtn');
+  });
+});
+
+test.describe('Timer Application - Initial State', () => {
+  test('должен запускаться свернутым в трей', async () => {
+    // Запускаем новое Electron приложение для проверки начального состояния
+    const electronPath = require('electron');
+    const mainPath = path.join(__dirname, '../../dist/main.js');
+    
+    const testApp = await electron.launch({
+      executablePath: electronPath,
+      args: [mainPath],
+      env: {
+        ...process.env,
+        ELECTRON_DISABLE_SANDBOX: '1',
+      },
+    });
+
+    try {
+      // Получаем первое окно приложения
+      const testWindow = await testApp.firstWindow();
+      
+      // Ждем загрузки приложения
+      await testWindow.waitForLoadState('domcontentloaded');
+      
+      // Ждем немного для инициализации
+      await testWindow.waitForTimeout(1000);
+      
+      // Проверяем, что окно изначально скрыто (приложение запускается свернутым в трей)
+      const isVisible = await testApp.evaluate(({ BrowserWindow }) => {
+        const windows = BrowserWindow.getAllWindows();
+        return windows.length > 0 && windows[0].isVisible();
+      });
+      
+      expect(isVisible).toBe(false);
+    } finally {
+      // Закрываем тестовое приложение
+      await testApp.close();
+    }
   });
 });
 

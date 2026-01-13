@@ -373,9 +373,17 @@ function createWindow(): void {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
+    show: false, // Всегда запускаем приложение свернутым
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  // Скрываем окно после загрузки
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow) {
+      mainWindow.hide();
+    }
+  });
 
   // Обработка закрытия окна - сворачиваем в tray вместо закрытия
   mainWindow.on('close', (event) => {
