@@ -127,6 +127,27 @@ function formatTimeForTray(seconds: number): string {
   return `${hours.toFixed(1)}h`;
 }
 
+function formatTimeForTooltip(seconds: number): string {
+  if (seconds <= 0) return '0s';
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes}m`);
+  }
+  if (secs > 0 || parts.length === 0) {
+    parts.push(`${secs}s`);
+  }
+  
+  return parts.join(' ');
+}
+
 function updateTrayIcon(): void {
   if (!tray) return;
   
@@ -140,12 +161,12 @@ function updateTrayIcon(): void {
   } else if (timerState.isPaused && timerState.seconds > 0) {
     // Таймер на паузе - показываем "p"
     icon = createTextIcon('p', false);
-    tooltipText = `Таймер на паузе: ${formatTimeForTray(timerState.seconds)}`;
+    tooltipText = `Таймер на паузе: ${formatTimeForTooltip(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
     // Показываем оставшиеся секунды
     const text = formatTimeForTray(timerState.seconds);
     icon = createTextIcon(text, false);
-    tooltipText = `Таймер: ${formatTimeForTray(timerState.seconds)}`;
+    tooltipText = `Таймер: ${formatTimeForTooltip(timerState.seconds)}`;
   } else {
     // Прочерк когда таймер не запущен
     icon = createTextIcon('—', false);
