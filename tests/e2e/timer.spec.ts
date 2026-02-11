@@ -73,8 +73,10 @@ test.describe('Timer Application', () => {
   });
 
   test('должен отображать начальное состояние', async () => {
-    // Проверяем, что таймер показывает 00:00
-    await expect(window.locator('#timerDisplay')).toHaveText('00:00');
+    // Проверяем, что таймер показывает 0с (00:00)
+    const timerText = await window.locator('#timerDisplay').textContent();
+    expect(timerText).toContain('0с');
+    expect(timerText).toContain('(00:00)');
     
     // Проверяем, что кнопка запуска активна
     await expect(window.locator('#startBtn')).toBeEnabled();
@@ -104,10 +106,10 @@ test.describe('Timer Application', () => {
     // Проверяем, что поле ввода заблокировано
     await expect(window.locator('#secondsInput')).toBeDisabled();
     
-    // Проверяем, что таймер начал отсчет (не 00:00)
+    // Проверяем, что таймер начал отсчет (не 0с (00:00))
     await window.waitForTimeout(500);
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).not.toBe('00:00');
+    expect(timerText).not.toContain('0с (00:00)');
   });
 
   test('должен останавливать таймер', async () => {
@@ -128,7 +130,9 @@ test.describe('Timer Application', () => {
     await window.waitForTimeout(300);
     
     // Проверяем, что таймер остановлен
-    await expect(window.locator('#timerDisplay')).toHaveText('00:00');
+    const timerText = await window.locator('#timerDisplay').textContent();
+    expect(timerText).toContain('0с');
+    expect(timerText).toContain('(00:00)');
     
     // Проверяем, что кнопка запуска активна
     await expect(window.locator('#startBtn')).toBeEnabled();
@@ -358,9 +362,9 @@ test.describe('Timer Application', () => {
     // Проверяем, что таймер запустился
     await expect(window.locator('#startBtn')).toBeDisabled();
     
-    // Проверяем, что отображается время (не 00:00)
+    // Проверяем, что отображается время (не 0с (00:00))
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).not.toBe('00:00');
+    expect(timerText).not.toContain('0с (00:00)');
     
     // Останавливаем
     await window.click('#stopBtn');

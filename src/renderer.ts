@@ -32,16 +32,35 @@ function sendTimerUpdate(): void {
   }
 }
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
+function formatTime(seconds: number): { main: string; secondary: string } {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const totalMins = Math.floor(seconds / 60);
+  
+  // Формируем строку с часами, минутами и секундами
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${hours}ч`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes}м`);
+  }
+  if (secs > 0 || parts.length === 0) {
+    parts.push(`${secs}с`);
+  }
+  
+  const main = parts.join(' ');
+  const secondary = `(${String(totalMins).padStart(2, '0')}:${String(secs).padStart(2, '0')})`;
+  
+  return { main, secondary };
 }
 
 function updateDisplay(): void {
   const display = document.getElementById('timerDisplay');
   if (display) {
-    display.textContent = formatTime(remainingSeconds);
+    const formatted = formatTime(remainingSeconds);
+    display.innerHTML = `<div class="timer-display-main">${formatted.main}</div><div class="timer-display-secondary">${formatted.secondary}</div>`;
   }
 }
 
