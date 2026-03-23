@@ -12,6 +12,7 @@ declare global {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let countdownWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 // Экспортируем tray для тестирования (только в development режиме)
@@ -37,6 +38,102 @@ let remainingSeconds: number = 0;
 let isPaused: boolean = false;
 let lastUpdateTime: number = 0;
 let timerEndTime: number = 0; // Время когда таймер должен закончиться
+
+function formatTimeForCountdownWindow(seconds: number): string {
+  if (seconds <= 0) return '—';
+  if (seconds < 60) return '< 1м';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}ч`);
+  parts.push(`${minutes}м`);
+  return parts.join(' ');
+}
+
+function getCountdownText(): string {
+  return formatTimeForCountdownWindow(remainingSeconds);
+}
+
+function updateCountdownWindow(): void {
+  if (countdownWindow && !countdownWindow.isDestroyed()) {
+    const text = getCountdownText();
+    countdownWindow.webContents.send('countdown-update', text);
+  }
+}
+
+function createCountdownWindow(): void {
+  if (countdownWindow && !countdownWindow.isDestroyed()) {
+    countdownWindow.show();
+    updateCountdownWindow();
+    sendCountdownWindowState();
+    return;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { x: screenX, y: screenY } = primaryDisplay.workArea;
+
+  const windowWidth = 280;
+  const windowHeight = 70;
+  const x = screenX + screenWidth - windowWidth;
+  const y = screenY + screenHeight - windowHeight;
+
+  countdownWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x,
+    y,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    show: false,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  countdownWindow.loadFile(path.join(__dirname, 'countdown.html'));
+
+  countdownWindow.once('ready-to-show', () => {
+    if (countdownWindow) {
+      updateCountdownWindow();
+      countdownWindow.show();
+      sendCountdownWindowState();
+    }
+  });
+
+  countdownWindow.on('closed', () => {
+    countdownWindow = null;
+    sendCountdownWindowState();
+  });
+}
+
+function destroyCountdownWindow(): void {
+  if (countdownWindow) {
+    countdownWindow.close();
+    countdownWindow = null;
+  }
+  sendCountdownWindowState();
+}
+
+function toggleCountdownWindow(): void {
+  if (countdownWindow && !countdownWindow.isDestroyed()) {
+    destroyCountdownWindow();
+  } else {
+    createCountdownWindow();
+  }
+}
+
+function sendCountdownWindowState(): void {
+  const visible = !!(countdownWindow && !countdownWindow.isDestroyed());
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('countdown-window-state', visible);
+  }
+}
 
 function updateTrayMenu(): void {
   if (!tray) return;
@@ -212,8 +309,9 @@ function sendTimerUpdateToRenderer(): void {
     isAlerting: timerState.isAlerting,
     isPaused: isPaused && timerInterval !== null
   };
-  
+
   updateTrayIcon();
+  updateCountdownWindow();
 }
 
 function startTimer(seconds: number): void {
@@ -487,6 +585,14 @@ function initializeApp(): void {
 
   ipcMain.on('timer-adjust', (_event, seconds: number) => {
     adjustTimerTime(seconds);
+  });
+
+  // Окно отсчёта времени
+  ipcMain.on('countdown-window-toggle', () => {
+    toggleCountdownWindow();
+  });
+  ipcMain.on('countdown-window-close', () => {
+    destroyCountdownWindow();
   });
 
   // Обработчик сворачивания окна в трей

@@ -18,6 +18,8 @@ interface ElectronAPI {
   onTimerFinished: (callback: () => void) => void;
   removeTimerUpdateListener: () => void;
   removeTimerFinishedListener: () => void;
+  toggleCountdownWindow: () => void;
+  onCountdownWindowState: (callback: (visible: boolean) => void) => void;
 }
 
 function sendTimerUpdate(): void {
@@ -466,6 +468,14 @@ document.addEventListener('DOMContentLoaded', () => {
       playAlarmSound();
       sendTimerUpdate();
     });
+
+    // Состояние окна отсчёта времени
+    electronAPI.onCountdownWindowState((visible: boolean) => {
+      const btn = document.getElementById('countdownWindowBtn') as HTMLButtonElement;
+      if (btn) {
+        btn.textContent = visible ? 'Скрыть окно отсчёта времени' : 'Показывать окно отсчёта времени';
+      }
+    });
   }
 
   // Обработка Enter в поле ввода
@@ -564,6 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Обработчики кнопок управления приложением
   const minimizeBtn = document.getElementById('minimizeBtn');
   const closeBtn = document.getElementById('closeBtn');
+  const countdownWindowBtn = document.getElementById('countdownWindowBtn');
 
   if (minimizeBtn) {
     minimizeBtn.addEventListener('click', () => {
@@ -583,6 +594,13 @@ document.addEventListener('DOMContentLoaded', () => {
           electronAPI.closeApp();
         }
       }
+    });
+  }
+
+  if (countdownWindowBtn) {
+    countdownWindowBtn.addEventListener('click', () => {
+      const api = (window as any).electronAPI as ElectronAPI | undefined;
+      if (api) api.toggleCountdownWindow();
     });
   }
 });
