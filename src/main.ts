@@ -64,6 +64,8 @@ function updateCountdownWindow(): void {
 function createCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     countdownWindow.show();
+    countdownWindow.focus();
+    countdownWindow.moveTop();
     updateCountdownWindow();
     sendCountdownWindowState();
     return;
@@ -102,6 +104,12 @@ function createCountdownWindow(): void {
     if (countdownWindow) {
       updateCountdownWindow();
       countdownWindow.show();
+      countdownWindow.focus();
+      // На Linux окно может оказаться под другими или без фокуса
+      countdownWindow.moveTop();
+      if (process.platform === 'linux') {
+        countdownWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      }
       sendCountdownWindowState();
     }
   });
