@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, screen } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { createCanvas } from 'canvas';
 
 // Расширяем тип app для свойства isQuitting
@@ -38,6 +39,117 @@ let remainingSeconds: number = 0;
 let isPaused: boolean = false;
 let lastUpdateTime: number = 0;
 let timerEndTime: number = 0; // Время когда таймер должен закончиться
+let isRestoringSettings = false;
+
+type PersistedTimer =
+  | {
+      secondsLeft: number;
+      isPaused: true;
+      savedAt: number;
+    }
+  | {
+      secondsLeft: number;
+      isPaused: false;
+      timerEndTimestamp: number;
+      savedAt: number;
+    };
+
+type PersistedSettings = {
+  version: number;
+  timer: PersistedTimer | null;
+  countdownWindowVisible: boolean;
+};
+
+const SETTINGS_VERSION = 1;
+const SETTINGS_FILE_NAME = 'settings.json';
+
+function getSettingsPath(): string {
+  const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
+  return path.join(baseDir, SETTINGS_FILE_NAME);
+}
+
+function loadSettings(): PersistedSettings | null {
+  try {
+    const raw = fs.readFileSync(getSettingsPath(), 'utf8');
+    const parsed = JSON.parse(raw) as PersistedSettings;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.version !== 'number') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveSettings(): void {
+  if (isRestoringSettings) return;
+
+  const countdownWindowVisible = !!(countdownWindow && !countdownWindow.isDestroyed());
+
+  let timer: PersistedTimer | null = null;
+  if (timerInterval && remainingSeconds > 0) {
+    if (isPaused) {
+      timer = { secondsLeft: remainingSeconds, isPaused: true, savedAt: Date.now() };
+    } else {
+      timer = {
+        secondsLeft: remainingSeconds,
+        isPaused: false,
+        timerEndTimestamp: timerEndTime,
+        savedAt: Date.now(),
+      };
+    }
+  }
+
+  const settings: PersistedSettings = {
+    version: SETTINGS_VERSION,
+    timer,
+    countdownWindowVisible,
+  };
+
+  try {
+    fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save settings.json:', err);
+  }
+}
+
+function restoreSettings(): void {
+  const settings = loadSettings();
+  if (!settings) return;
+
+  isRestoringSettings = true;
+
+  // На старте считаем, что "alerting" состояние не нужно восстанавливать.
+  timerState.isAlerting = false;
+  stopBlinking();
+
+  try {
+    if (settings.timer && settings.timer.secondsLeft > 0) {
+      if (settings.timer.isPaused) {
+        // startTimer создаёт таймер-interval, а мы потом переводим его в paused.
+        startTimer(settings.timer.secondsLeft);
+        isPaused = true;
+        sendTimerUpdateToRenderer();
+      } else {
+        const now = Date.now();
+        const endTs =
+          typeof settings.timer.timerEndTimestamp === 'number'
+            ? settings.timer.timerEndTimestamp
+            : now + settings.timer.secondsLeft * 1000;
+        const secondsLeft = Math.max(0, Math.floor((endTs - now) / 1000));
+        if (secondsLeft > 0) {
+          startTimer(secondsLeft);
+        }
+      }
+    }
+
+    if (settings.countdownWindowVisible) {
+      createCountdownWindow();
+    }
+  } finally {
+    isRestoringSettings = false;
+    saveSettings();
+  }
+}
 
 function formatTimeForCountdownWindow(seconds: number): string {
   if (seconds <= 0) return '—';
@@ -126,6 +238,7 @@ function destroyCountdownWindow(): void {
     countdownWindow = null;
   }
   sendCountdownWindowState();
+  saveSettings();
 }
 
 function toggleCountdownWindow(): void {
@@ -133,6 +246,7 @@ function toggleCountdownWindow(): void {
     destroyCountdownWindow();
   } else {
     createCountdownWindow();
+    saveSettings();
   }
 }
 
@@ -356,6 +470,7 @@ function startTimer(seconds: number): void {
   }, 100); // Проверяем каждые 100мс для точности
   
   sendTimerUpdateToRenderer();
+  saveSettings();
 }
 
 function pauseResumeTimer(): void {
@@ -370,6 +485,7 @@ function pauseResumeTimer(): void {
   
   isPaused = !isPaused;
   sendTimerUpdateToRenderer();
+  saveSettings();
 }
 
 function stopTimer(): void {
@@ -384,6 +500,7 @@ function stopTimer(): void {
   timerEndTime = 0;
   
   sendTimerUpdateToRenderer();
+  saveSettings();
 }
 
 function adjustTimerTime(seconds: number): void {
@@ -409,6 +526,7 @@ function adjustTimerTime(seconds: number): void {
   lastUpdateTime = currentTime;
   
   sendTimerUpdateToRenderer();
+  saveSettings();
 }
 
 function createAppIcon(): Electron.NativeImage {
@@ -565,6 +683,10 @@ function initializeApp(): void {
   createWindow();
   createTray();
 
+  // Восстанавливаем состояние из settings.json.
+  // Важно: делаем это после createTray/createWindow, чтобы старт таймера мог обновить UI/трей.
+  restoreSettings();
+
   // Обработчик обновлений состояния таймера (для обратной совместимости с уведомлениями)
   ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
     timerState.isAlerting = state.isAlerting;
@@ -677,5 +799,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  saveSettings();
 });
 
