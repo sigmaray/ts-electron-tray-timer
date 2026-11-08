@@ -1,0 +1,95 @@
+version: "3"
+
+tasks:
+  default:
+    desc: List available project tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install project dependencies from the lockfile
+    cmds:
+      - npm ci
+
+  build:
+    desc: Build the Electron main process and renderer
+    cmds:
+      - npm run build
+
+  start:
+    desc: Build and launch the application
+    cmds:
+      - npm start
+
+  dev:
+    desc: Build and launch the application in development mode
+    cmds:
+      - npm run dev
+
+  dev-multiple:
+    desc: Build and launch without the single-instance lock
+    cmds:
+      - npm run devm
+
+  typecheck:
+    desc: Typecheck the application, renderer, and E2E tests
+    cmds:
+      - npm run typecheck
+
+  lint:
+    desc: Run ESLint
+    cmds:
+      - npm run lint
+
+  format:
+    desc: Format project source and test files
+    cmds:
+      - npm run format
+
+  format-check:
+    desc: Check formatting without changing files
+    cmds:
+      - npm run format:check
+
+  test-unit:
+    desc: Build the app and run unit tests
+    cmds:
+      - npm run test:unit
+
+  test-e2e:
+    desc: Build the app and run Electron end-to-end tests
+    deps: [build]
+    cmds:
+      - npm run test:e2e
+
+  test-e2e-ui:
+    desc: Build the app and open the Playwright test UI
+    deps: [build]
+    cmds:
+      - npm run test:e2e:ui
+
+  test-e2e-headed:
+    desc: Build the app and run headed Electron end-to-end tests
+    deps: [build]
+    cmds:
+      - npm run test:e2e:headed
+
+  quality:
+    desc: Run typecheck, lint, formatting, and unit tests
+    cmds:
+      - task typecheck
+      - task lint
+      - task format-check
+      - task test-unit
+
+  test:
+    desc: Run unit and Electron end-to-end tests
+    cmds:
+      - task test-unit
+      - task test-e2e
+
+  package:
+    desc: Build distributable Electron archives
+    deps: [build]
+    cmds:
+      - npm run build:electron
