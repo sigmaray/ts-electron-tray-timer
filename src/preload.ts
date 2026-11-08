@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-// Предоставляем безопасный API для renderer процесса
+// Expose a limited API to the renderer process.
 contextBridge.exposeInMainWorld("electronAPI", {
   getTimerState: () =>
     ipcRenderer.invoke("timer-state-get") as Promise<{
@@ -37,7 +37,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   closeApp: () => {
     ipcRenderer.send("close-app");
   },
-  // Команды таймера
+  // Timer commands.
   startTimer: (seconds: number) => {
     ipcRenderer.send("timer-start", seconds);
   },
@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   adjustTimerTime: (seconds: number) => {
     ipcRenderer.send("timer-adjust", seconds);
   },
-  // Слушатели событий от main процесса
+  // Listen for events from the main process.
   onTimerUpdate: (
     callback: (state: {
       seconds: number;
@@ -72,14 +72,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       (_event, durationSeconds: number) => callback(durationSeconds),
     );
   },
-  // Удаление слушателей
+  // Remove event listeners.
   removeTimerUpdateListener: () => {
     ipcRenderer.removeAllListeners("timer-update");
   },
   removeTimerFinishedListener: () => {
     ipcRenderer.removeAllListeners("timer-finished");
   },
-  // Окно отсчёта времени
+  // Countdown window.
   toggleCountdownWindow: () => {
     ipcRenderer.send("countdown-window-toggle");
   },

@@ -48,7 +48,7 @@ function formatTime(seconds: number): { main: string; secondary: string } {
   const secs = seconds % 60;
   const totalMins = Math.floor(seconds / 60);
 
-  // Формируем строку с часами, минутами и секундами
+  // Format the time as hours, minutes, and seconds.
   const parts: string[] = [];
   if (hours > 0) {
     parts.push(`${hours}h`);
@@ -75,7 +75,7 @@ function updateDisplay(): void {
 }
 
 function adjustTime(seconds: number): void {
-  // Кнопки работают только если таймер запущен (включая паузу)
+  // These controls work only while a timer is active, including when paused.
   if (!isRunning && !isPaused) return;
 
   const electronAPI = window.electronAPI;
@@ -85,7 +85,7 @@ function adjustTime(seconds: number): void {
 }
 
 function updateTimeAdjustButtons(): void {
-  // Кнопки активны только если таймер запущен (включая паузу)
+  // Enable these controls only while a timer is active, including when paused.
   const isActive = isRunning || isPaused;
 
   const buttons = [
@@ -106,12 +106,12 @@ function updateTimeAdjustButtons(): void {
     }
   });
 
-  // Обновляем состояние кнопок изменения input
+  // Update the input adjustment buttons.
   updateInputAdjustButtons();
 }
 
 function adjustInputTime(seconds: number): void {
-  // Кнопки работают только если таймер НЕ запущен
+  // These controls work only while the timer is stopped.
   if (isRunning || isPaused) return;
 
   const input = document.getElementById("secondsInput") as HTMLInputElement;
@@ -121,7 +121,7 @@ function adjustInputTime(seconds: number): void {
   const currentSeconds = parseDurationInput(currentValue);
 
   if (currentSeconds === null) {
-    // Если не удалось распарсить, устанавливаем минимальное значение
+    // Use the minimum value when parsing fails.
     if (seconds > 0) {
       input.value = formatTimeInput(seconds);
     }
@@ -130,7 +130,7 @@ function adjustInputTime(seconds: number): void {
 
   const newSeconds = currentSeconds + seconds;
 
-  // Не позволяем времени стать отрицательным
+  // Keep the time from becoming negative.
   if (newSeconds < 0) {
     return;
   }
@@ -140,7 +140,7 @@ function adjustInputTime(seconds: number): void {
 
 function formatTimeInput(seconds: number): string {
   if (seconds <= 0) {
-    return "1s"; // Минимальное значение
+    return "1s"; // Minimum value.
   }
   if (seconds < 60) {
     return `${seconds}s`;
@@ -164,7 +164,7 @@ function formatTimeInput(seconds: number): string {
 }
 
 function updateInputAdjustButtons(): void {
-  // Кнопки активны только если таймер НЕ запущен
+  // Enable these buttons only while the timer is stopped.
   const isActive = !isRunning && !isPaused;
 
   const buttons = [
@@ -183,12 +183,12 @@ function updateInputAdjustButtons(): void {
     }
   });
 
-  // Обновляем состояние quick-links
+  // Update the quick links.
   updateQuickLinks();
 }
 
 function updateQuickLinks(): void {
-  // Ссылки активны только если таймер НЕ запущен
+  // Enable links only while the timer is stopped.
   const isActive = !isRunning && !isPaused;
 
   const quickLinks = document.querySelectorAll(".quick-link");
@@ -228,7 +228,7 @@ function startTimer(): void {
   input.disabled = true;
   setStatus("Timer started...", "running");
 
-  // Отправляем команду в main процесс
+  // Send the command to the main process.
   const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.startTimer(seconds);
@@ -250,11 +250,11 @@ function stopTimer(): void {
     electronAPI.stopTimer();
   }
 
-  // UI обновится через слушатель onTimerUpdate
+  // The onTimerUpdate listener will refresh the UI.
 
-  // Останавливаем звук если он играет
+  // Stop the alarm sound if it is playing.
   stopAlarmSound();
-  // Закрываем уведомление если оно активно
+  // Close the notification if one is active.
   if (notification) {
     notification.close();
     notification = null;
@@ -266,7 +266,7 @@ function stopTimer(): void {
 function showNotification(durationSeconds: number): void {
   const durationLabel = formatDurationLabel(durationSeconds);
   const notificationBody = `The ${durationLabel} timer has finished.`;
-  // Запрашиваем разрешение на уведомления
+  // Request permission to show notifications.
   if (Notification.permission === "default") {
     void Notification.requestPermission().catch(() => {});
   }
@@ -279,7 +279,7 @@ function showNotification(durationSeconds: number): void {
         tag: "timer-alert",
       });
 
-      // Останавливаем звук когда уведомление закрыто
+      // Stop the alarm when the notification is closed.
       notification.onclose = () => {
         stopAlarmSound();
         notification = null;
@@ -287,7 +287,7 @@ function showNotification(durationSeconds: number): void {
         sendTimerUpdate();
       };
 
-      // Останавливаем звук при клике на уведомление
+      // Stop the alarm when the notification is clicked.
       notification.onclick = () => {
         stopAlarmSound();
         if (window.focus) window.focus();
@@ -305,17 +305,17 @@ function showNotification(durationSeconds: number): void {
     }
   }
 
-  // Если уведомления не разрешены, показываем alert
+  // Show an alert if notifications are unavailable.
   alert(`⏰ The ${durationLabel} timer has finished!`);
   stopAlarmSound();
-  // Создаем фиктивное уведомление для показа кнопки
+  // Use a placeholder notification to show the dismiss button.
   notification = {} as Notification;
   updateDismissButton();
   sendTimerUpdate();
 }
 
 function playAlarmSound(): void {
-  // Создаем звуковой сигнал с помощью Web Audio API
+  // Play an alarm tone using the Web Audio API.
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioContext = new AudioContextClass();
@@ -329,7 +329,7 @@ function playAlarmSound(): void {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.value = 800; // Частота в Гц
+      oscillator.frequency.value = 800; // Frequency in hertz.
       oscillator.type = "sine";
 
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
@@ -342,7 +342,7 @@ function playAlarmSound(): void {
       oscillator.stop(audioContext.currentTime + 0.5);
     }
 
-    // Играем звук каждые 0.6 секунды
+    // Play a tone every 0.6 seconds.
     playBeep();
     audioInterval = setInterval(() => {
       if (audioContext && notification) {
@@ -363,7 +363,7 @@ function stopAlarmSound(): void {
   }
   if (audioContext) {
     audioContext.close().catch(() => {
-      // Игнорируем ошибки при закрытии
+      // Ignore errors while closing.
     });
     audioContext = null;
   }
@@ -390,7 +390,7 @@ function dismissNotification(): void {
   setStatus("Alert dismissed", "neutral");
 }
 
-// Инициализация при загрузке страницы
+// Initialize the page after it loads.
 document.addEventListener("DOMContentLoaded", () => {
   setStatus("Timer is not set", "stopped");
 
@@ -445,19 +445,19 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsApi?.setUiSettings({ instructionsVisible: enabled });
   });
 
-  // Запрашиваем разрешение на уведомления при загрузке
+  // Request notification permission when the page loads.
   if (Notification.permission === "default") {
     Notification.requestPermission();
   }
 
-  // Инициализируем состояние кнопок изменения времени
+  // Initialize the time-adjustment buttons.
   updateTimeAdjustButtons();
   updateInputAdjustButtons();
 
-  // Подключаем слушатели обновлений от main процесса
+  // Subscribe to updates from the main process.
   const electronAPI = window.electronAPI;
   if (electronAPI) {
-    // Слушаем обновления таймера
+    // Listen for timer updates.
     const applyTimerState = (state: {
       seconds: number;
       isRunning: boolean;
@@ -472,7 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updateDisplay();
       updateTimeAdjustButtons();
 
-      // Обновляем UI кнопок
+      // Update the button states.
       const startBtn = document.getElementById("startBtn") as HTMLButtonElement;
       const stopBtn = document.getElementById("stopBtn") as HTMLButtonElement;
       const pauseBtn = document.getElementById("pauseBtn") as HTMLButtonElement;
@@ -499,7 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       }
 
-      // Обновляем состояние кнопок изменения input (включая quick-links)
+      // Update the input adjustment buttons, including quick links.
       updateInputAdjustButtons();
     };
     electronAPI.onTimerUpdate(applyTimerState);
@@ -525,7 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
     electronAPI.onTimerFinished(handleTimerFinished);
     electronAPI.onStartupTimerFinished(handleTimerFinished);
 
-    // Состояние окна отсчёта времени
+    // Countdown window state.
     electronAPI.onCountdownWindowState((visible: boolean) => {
       const btn = document.getElementById(
         "countdownWindowBtn",
@@ -538,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Обработка Enter в поле ввода
+  // Handle Enter in the input field.
   const input = document.getElementById("secondsInput") as HTMLInputElement;
   if (input) {
     input.addEventListener("keypress", (e: KeyboardEvent) => {
@@ -553,7 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Подключаем обработчики кнопок
+  // Attach button handlers.
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
   const pauseBtn = document.getElementById("pauseBtn");
@@ -575,7 +575,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dismissBtn.addEventListener("click", dismissNotification);
   }
 
-  // Обработчики кнопок изменения времени
+  // Time-adjustment button handlers.
   const adjustButtons = [
     { id: "adjustMinus1h", seconds: -3600 },
     { id: "adjustMinus10m", seconds: -600 },
@@ -594,7 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Обработчики кнопок изменения времени в input
+  // Input time-adjustment button handlers.
   const inputAdjustButtons = [
     { id: "inputAdjustMinus10m", seconds: -600 },
     { id: "inputAdjustMinus5m", seconds: -300 },
@@ -611,12 +611,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Обработчики быстрых ссылок
+  // Quick-link handlers.
   const quickLinks = document.querySelectorAll(".quick-link");
   quickLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
-      // Не работаем если таймер запущен или на паузе
+      // Ignore changes while the timer is running or paused.
       if (isRunning || isPaused) {
         return;
       }
@@ -632,10 +632,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Обновляем состояние quick-links при инициализации
+  // Initialize the quick-link state.
   updateQuickLinks();
 
-  // Обработчики кнопок управления приложением
+  // App control button handlers.
   const minimizeBtn = document.getElementById("minimizeBtn");
   const closeBtn = document.getElementById("closeBtn");
   const countdownWindowBtn = document.getElementById("countdownWindowBtn");
@@ -669,6 +669,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Экспортируем функции для глобального доступа (на случай если нужно)
+// Expose functions globally for optional external access.
 window.startTimer = startTimer;
 window.stopTimer = stopTimer;

@@ -24,12 +24,12 @@ let countdownWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
-// Экспортируем tray для тестирования (только в development режиме)
+// Expose the tray for tests in development mode only.
 if (process.env.NODE_ENV === "test") {
   globalThis.__tray__ = () => tray;
 }
 
-// Константа для управления разрешением только одного экземпляра приложения
+// Control whether the app allows only one running instance.
 const ALLOW_ONLY_ONE_INSTANCE = process.env.ALLOW_ONLY_ONE_INSTANCE !== "false";
 
 let timerState: {
@@ -47,12 +47,12 @@ let timerState: {
 let blinkInterval: NodeJS.Timeout | null = null;
 let isBlinking = false;
 
-// Переменные для таймера в main процессе
+// Timer state owned by the main process.
 let timerInterval: NodeJS.Timeout | null = null;
 let remainingSeconds: number = 0;
 let isPaused: boolean = false;
 let lastUpdateTime: number = 0;
-let timerEndTime: number = 0; // Время когда таймер должен закончиться
+let timerEndTime: number = 0; // Timestamp when the timer should finish.
 let timerDurationSeconds = 0;
 let isRestoringSettings = false;
 let pendingStartupTimerFinished = false;
@@ -131,14 +131,14 @@ function restoreSettings(): void {
   advancedControlsVisible = settings.advancedControlsVisible === true;
   instructionsVisible = settings.instructionsVisible === true;
 
-  // На старте считаем, что "alerting" состояние не нужно восстанавливать.
+  // Do not restore the alerting state on startup.
   timerState.isAlerting = false;
   stopBlinking();
 
   try {
     if (settings.timer && settings.timer.secondsLeft > 0) {
       if (settings.timer.isPaused) {
-        // startTimer создаёт таймер-interval, а мы потом переводим его в paused.
+        // startTimer creates the interval; the restored timer is then paused.
         startTimer(settings.timer.secondsLeft);
         timerDurationSeconds =
           settings.timer.durationSeconds ?? settings.timer.secondsLeft;
@@ -257,7 +257,7 @@ function createCountdownWindow(): void {
       updateCountdownWindow();
       countdownWindow.show();
       countdownWindow.focus();
-      // На Linux окно может оказаться под другими или без фокуса
+      // On Linux, the window may appear behind other windows or without focus.
       countdownWindow.moveTop();
       if (process.platform === "linux") {
         countdownWindow.setVisibleOnAllWorkspaces(true, {
@@ -351,20 +351,20 @@ function updateTrayIcon(): void {
   let tooltipText: string;
 
   if (timerState.isAlerting) {
-    // Мигание: красная иконка
+    // Use a red icon while blinking.
     icon = createTextIcon("!", isBlinking);
     tooltipText = "⏰ Time is up!";
   } else if (timerState.isPaused && timerState.seconds > 0) {
-    // Таймер на паузе - показываем "p"
+    // Show "p" when the timer is paused.
     icon = createTextIcon("p", false);
     tooltipText = `Timer paused: ${formatTimeForTooltip(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
-    // Показываем оставшиеся секунды
+    // Show the remaining time.
     const text = formatTimeForTray(timerState.seconds);
     icon = createTextIcon(text, false);
     tooltipText = `Timer: ${formatTimeForTooltip(timerState.seconds)}`;
   } else {
-    // Прочерк когда таймер не запущен
+    // Show a dash when the timer is not running.
     icon = createTextIcon("—", false);
     tooltipText = "Timer is not running";
   }
@@ -380,7 +380,7 @@ function startBlinking(): void {
   blinkInterval = setInterval(() => {
     isBlinking = !isBlinking;
     updateTrayIcon();
-  }, 500); // Мигание каждые 500мс
+  }, 500); // Blink every 500 ms.
 }
 
 function stopBlinking(): void {
@@ -402,7 +402,7 @@ function sendTimerUpdateToRenderer(): void {
     });
   }
 
-  // Обновляем состояние для трея
+  // Update the tray state.
   timerState = {
     seconds: remainingSeconds,
     isRunning: timerInterval !== null && !isPaused,
@@ -443,14 +443,14 @@ function startTimer(seconds: number): void {
 
         if (remainingSeconds <= 0) {
           stopTimer();
-          // Отправляем сигнал о завершении таймера
+          // Notify the renderer that the timer has finished.
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send("timer-finished", timerDurationSeconds);
           }
         }
       }
     }
-  }, 100); // Проверяем каждые 100мс для точности
+  }, 100); // Check every 100 ms for accuracy.
 
   sendTimerUpdateToRenderer();
   saveSettings();
@@ -460,7 +460,7 @@ function pauseResumeTimer(): void {
   if (!timerInterval) return;
 
   if (isPaused) {
-    // Возобновляем - пересчитываем timerEndTime
+    // Recalculate timerEndTime when resuming.
     const currentTime = Date.now();
     timerEndTime = currentTime + remainingSeconds * 1000;
     lastUpdateTime = currentTime;
@@ -489,7 +489,7 @@ function stopTimer(): void {
 function adjustTimerTime(seconds: number): void {
   if (!timerInterval) return;
 
-  // Если таймер работает, обновляем оставшееся время
+  // Refresh the remaining time while the timer is running.
   if (!isPaused) {
     const currentTime = Date.now();
     remainingSeconds = Math.max(
@@ -501,7 +501,7 @@ function adjustTimerTime(seconds: number): void {
 
   remainingSeconds += seconds;
 
-  // Не позволяем времени стать отрицательным
+  // Keep the time from becoming negative.
   if (remainingSeconds < 0) {
     remainingSeconds = 0;
   }
@@ -511,7 +511,7 @@ function adjustTimerTime(seconds: number): void {
     Math.max(0, timerDurationSeconds + seconds),
   );
 
-  // Обновляем timerEndTime
+  // Update timerEndTime.
   const currentTime = Date.now();
   timerEndTime = currentTime + remainingSeconds * 1000;
   lastUpdateTime = currentTime;
@@ -523,12 +523,12 @@ function adjustTimerTime(seconds: number): void {
 function createWindow(): void {
   const appIcon = createAppIcon();
 
-  // Получаем основной монитор
+  // Get the primary display.
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   const { x, y } = primaryDisplay.workArea;
 
-  // Вычисляем позицию для центрирования окна на основном мониторе
+  // Center the window on the primary display.
   const windowWidth = 800;
   const windowHeight = 900;
   const windowX = x + Math.floor((width - windowWidth) / 2);
@@ -545,7 +545,7 @@ function createWindow(): void {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
     },
-    show: false, // Всегда запускаем приложение свернутым
+    show: false, // Start the app minimized to the tray.
   });
 
   mainWindow.loadFile(path.join(__dirname, "index.html"));
@@ -564,14 +564,14 @@ function createWindow(): void {
     }
   });
 
-  // Скрываем окно после загрузки
+  // Hide the window after it loads.
   mainWindow.once("ready-to-show", () => {
     if (mainWindow) {
       mainWindow.hide();
     }
   });
 
-  // Обработка закрытия окна - сворачиваем в tray вместо закрытия
+  // Hide the window to the tray when it is closed.
   mainWindow.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
@@ -588,13 +588,13 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  // Начальная иконка с прочерком
+  // Start with a dash icon.
   tray = new Tray(createTextIcon("—", false));
 
   updateTrayMenu();
   updateTrayIcon();
 
-  // ЛКМ по иконке: показать/скрыть окно
+  // Left-click the tray icon to show or hide the window.
   tray.on("click", () => {
     if (!mainWindow) return;
     if (mainWindow.isVisible()) {
@@ -606,7 +606,7 @@ function createTray(): void {
     updateTrayMenu();
   });
 
-  // Двойной клик по иконке также показывает окно
+  // Double-click the tray icon to show the window.
   tray.on("double-click", () => {
     mainWindow?.show();
     mainWindow?.focus();
@@ -614,13 +614,13 @@ function createTray(): void {
   });
 }
 
-// Функция инициализации приложения
+// Initialize the application.
 function initializeApp(): void {
   createWindow();
   createTray();
 
-  // Восстанавливаем состояние из settings.json.
-  // Важно: делаем это после createTray/createWindow, чтобы старт таймера мог обновить UI/трей.
+  // Restore state from settings.json.
+  // Restore after creating the window and tray so the timer can update both.
   restoreSettings();
 
   registerIpcHandlers({
@@ -677,18 +677,18 @@ function initializeApp(): void {
   });
 }
 
-// Обеспечиваем, что только один экземпляр приложения может быть запущен (если включено)
+// Enforce the single-instance lock when enabled.
 if (ALLOW_ONLY_ONE_INSTANCE) {
   const gotTheLock = app.requestSingleInstanceLock();
   ownsInstanceLock = gotTheLock;
 
   if (!gotTheLock) {
-    // Если другой экземпляр уже запущен, закрываем этот
+    // Quit if another instance already holds the lock.
     app.quit();
   } else {
-    // Обрабатываем попытку запуска второго экземпляра
+    // Handle attempts to launch another instance.
     app.on("second-instance", () => {
-      // Если пользователь пытается запустить второй экземпляр, показываем существующее окно
+      // Show the existing window when another launch is requested.
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
@@ -701,15 +701,15 @@ if (ALLOW_ONLY_ONE_INSTANCE) {
     });
   }
 } else {
-  // Если разрешено несколько экземпляров, запускаем приложение без проверки блокировки
+  // Start without checking the lock when multiple instances are allowed.
   app.whenReady().then(() => {
     initializeApp();
   });
 }
 
 app.on("window-all-closed", () => {
-  // Не закрываем приложение при закрытии всех окон
-  // Оно будет работать в tray
+  // Keep the app running after all windows are closed.
+  // The app continues running in the tray.
 });
 
 app.on("before-quit", () => {

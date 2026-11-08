@@ -28,7 +28,7 @@ test.describe("Timer Application", () => {
         countdownWindowVisible: false,
       }),
     );
-    // Запускаем реальное Electron приложение
+    // Launch the Electron application.
     const electronPath = require("electron");
     const mainPath = path.join(__dirname, "../../dist/main.js");
 
@@ -42,13 +42,13 @@ test.describe("Timer Application", () => {
       },
     });
 
-    // Получаем первое окно приложения
+    // Get the app's first window.
     window = await electronApp.firstWindow();
 
-    // Ждем загрузки приложения
+    // Wait for the app to load.
     await window.waitForLoadState("domcontentloaded");
 
-    // Приложение запускается свернутым в трей, поэтому нужно явно показать окно для тестов
+    // The app starts hidden in the tray, so show its window for testing.
     await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
       if (windows.length > 0) {
@@ -56,15 +56,15 @@ test.describe("Timer Application", () => {
       }
     });
 
-    // Ждем появления основных элементов
+    // Wait for the main UI elements.
     await window.waitForSelector("#timerDisplay", { timeout: 10000 });
     await window.waitForSelector("#secondsInput", { timeout: 10000 });
 
-    // Ждем инициализации приложения
+    // Wait for the app to initialize.
   });
 
   test.afterEach(async () => {
-    // Закрываем Electron приложение после всех тестов
+    // Close the Electron app after the tests.
     if (electronApp) {
       await electronApp.close();
     }
@@ -72,9 +72,9 @@ test.describe("Timer Application", () => {
   });
 
   test.beforeEach(async () => {
-    // Перед каждым тестом убеждаемся, что окно видимо
+    // Ensure the window is visible before each test.
     if (window) {
-      // Явно показываем окно (приложение запускается свернутым в трей)
+      // Show the window explicitly because the app starts hidden in the tray.
       await electronApp.evaluate(({ BrowserWindow }) => {
         const windows = BrowserWindow.getAllWindows();
         if (windows.length > 0) {
@@ -84,7 +84,7 @@ test.describe("Timer Application", () => {
       });
       await window.bringToFront();
 
-      // Сбрасываем состояние таймера, если он запущен
+      // Reset the timer if it is running.
       const stopBtn = window.locator("#stopBtn");
       const isStopEnabled = await stopBtn.isEnabled().catch(() => false);
       if (isStopEnabled) {
@@ -95,15 +95,15 @@ test.describe("Timer Application", () => {
   });
 
   test("должен отображать начальное состояние", async () => {
-    // Проверяем, что таймер показывает 0с (00:00)
+    // Check that the timer shows 0 seconds (00:00).
     const timerText = await window.locator("#timerDisplay").textContent();
     expect(timerText).toContain("0s");
     expect(timerText).toContain("(00:00)");
 
-    // Проверяем, что кнопка запуска активна
+    // Check that the start button is enabled.
     await expect(window.locator("#startBtn")).toBeEnabled();
 
-    // Проверяем, что кнопки паузы и остановки неактивны
+    // Check that the pause and stop buttons are disabled.
     await expect(window.locator("#pauseBtn")).toBeDisabled();
     await expect(window.locator("#stopBtn")).toBeDisabled();
     await expect(window.locator("#status")).toHaveText("Timer is not set");
@@ -132,153 +132,153 @@ test.describe("Timer Application", () => {
   });
 
   test("должен запускать таймер с заданным временем", async () => {
-    // Устанавливаем время 5 секунд для быстрого теста
+    // Set a short five-second duration for this test.
     await window.fill("#secondsInput", "5s");
 
-    // Запускаем таймер
+    // Start the timer.
     await window.click("#startBtn");
 
-    // Проверяем, что кнопка запуска неактивна
+    // Check that the start button is disabled.
     await expect(window.locator("#startBtn")).toBeDisabled();
 
-    // Проверяем, что кнопки паузы и остановки активны
+    // Check that the pause and stop buttons are enabled.
     await expect(window.locator("#pauseBtn")).toBeEnabled();
     await expect(window.locator("#stopBtn")).toBeEnabled();
 
-    // Проверяем, что поле ввода заблокировано
+    // Check that the input is disabled.
     await expect(window.locator("#secondsInput")).toBeDisabled();
 
-    // Проверяем, что таймер начал отсчет (не 0с (00:00))
+    // Check that the timer has started counting down.
     await expect(window.locator("#timerDisplay")).not.toContainText(
       "0s (00:00)",
     );
   });
 
   test("должен останавливать таймер", async () => {
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "10s");
     await window.click("#startBtn");
 
-    // Останавливаем таймер
+    // Stop the timer.
     await window.click("#stopBtn");
 
-    // Проверяем, что таймер остановлен
+    // Check that the timer is stopped.
     await expect(window.locator("#timerDisplay")).toContainText("0s");
     await expect(window.locator("#timerDisplay")).toContainText("(00:00)");
 
-    // Проверяем, что кнопка запуска активна
+    // Check that the start button is enabled.
     await expect(window.locator("#startBtn")).toBeEnabled();
 
-    // Проверяем, что поле ввода разблокировано
+    // Check that the input is enabled again.
     await expect(window.locator("#secondsInput")).toBeEnabled();
   });
 
   test("должен ставить таймер на паузу и возобновлять", async () => {
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "30s");
     await window.click("#startBtn");
 
-    // Ставим на паузу
+    // Pause the timer.
     await window.click("#pauseBtn");
 
-    // Проверяем, что кнопка показывает "Возобновить"
+    // Check that the button now says "Resume".
     await expect(window.locator("#pauseBtn")).toHaveText("Resume");
 
-    // Запоминаем время на паузе
+    // Record the displayed time while paused.
     const pausedTime = await window.locator("#timerDisplay").textContent();
 
-    // Ждем немного - время не должно измениться
+    // Wait briefly and verify that the time stays unchanged.
     await expect(window.locator("#timerDisplay")).toHaveText(pausedTime!, {
       timeout: 1_500,
     });
 
-    // Возобновляем
+    // Resume the timer.
     await window.click("#pauseBtn");
 
-    // Проверяем, что кнопка показывает "Пауза"
+    // Check that the button now says "Pause".
     await expect(window.locator("#pauseBtn")).toHaveText("Pause");
 
-    // Ждем немного - время должно измениться
+    // Wait briefly and verify that the time changes.
     await expect(window.locator("#timerDisplay")).not.toHaveText(pausedTime!, {
       timeout: 2_000,
     });
   });
 
   test("должен изменять время через кнопки input когда таймер не запущен", async () => {
-    // Убеждаемся, что таймер остановлен
+    // Ensure that the timer is stopped.
     const stopBtn = window.locator("#stopBtn");
     if (await stopBtn.isEnabled()) {
       await stopBtn.click();
       await expect(window.locator("#secondsInput")).toBeEnabled();
     }
 
-    // Устанавливаем начальное значение
+    // Set the initial value.
     await window.fill("#secondsInput", "1m");
 
-    // Кнопки должны быть активны когда таймер не запущен
+    // The buttons should be enabled while the timer is stopped.
     await expect(window.locator("#inputAdjustPlus1m")).toBeEnabled();
 
-    // Добавляем 1 минуту
+    // Add one minute.
     await window.click("#inputAdjustPlus1m");
     await expect(window.locator("#secondsInput")).toHaveValue("2m");
 
-    // Добавляем еще 5 минут
+    // Add five more minutes.
     await window.click("#inputAdjustPlus5m");
     await expect(window.locator("#secondsInput")).toHaveValue("7m");
 
-    // Вычитаем 2 минуты
+    // Subtract two minutes.
     await window.click("#inputAdjustMinus1m");
     await window.click("#inputAdjustMinus1m");
     await expect(window.locator("#secondsInput")).toHaveValue("5m");
   });
 
   test("должен блокировать кнопки input когда таймер запущен", async () => {
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "10s");
     await window.click("#startBtn");
 
-    // Кнопки input должны быть заблокированы
+    // The input adjustment buttons should be disabled.
     await expect(window.locator("#inputAdjustPlus1m")).toBeDisabled();
     await expect(window.locator("#inputAdjustMinus1m")).toBeDisabled();
   });
 
   test("должен изменять время запущенного таймера через кнопки изменения времени", async () => {
     await window.locator("#advancedControlsToggle").check();
-    // Запускаем таймер на 30 секунд
+    // Start a 30-second timer.
     await window.fill("#secondsInput", "30s");
     await window.click("#startBtn");
 
-    // Запоминаем текущее время
+    // Record the current time.
     const initialTime = await window.locator("#timerDisplay").textContent();
 
-    // Добавляем 1 минуту (60 секунд)
+    // Add one minute (60 seconds).
     await window.click("#adjustPlus1m");
 
-    // Время должно увеличиться
+    // The displayed time should increase.
     await expect(window.locator("#timerDisplay")).not.toHaveText(initialTime!);
 
-    // Вычитаем 30 секунд
+    // Subtract 30 seconds.
     await window.click("#adjustMinus1m");
   });
 
   test("должен использовать quick links для установки времени", async () => {
-    // Quick links должны быть активны когда таймер не запущен
+    // Quick links should be enabled while the timer is stopped.
     const quickLink = window.locator('.quick-link[data-time="5m"]');
     await expect(quickLink).toBeVisible();
 
-    // Кликаем на quick link
+    // Click a quick link.
     await quickLink.click();
 
-    // Проверяем, что значение в input изменилось
+    // Check that the input value changed.
     await expect(window.locator("#secondsInput")).toHaveValue("5m");
   });
 
   test("должен блокировать quick links когда таймер запущен", async () => {
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "10s");
     await window.click("#startBtn");
 
-    // Quick links должны быть неактивны (opacity: 0.5 или pointer-events: none)
+    // Quick links should look disabled (reduced opacity or no pointer events).
     const quickLink = window.locator('.quick-link[data-time="5m"]');
     const pointerEvents = await quickLink.evaluate(
       (el) => globalThis.getComputedStyle(el).pointerEvents,
@@ -287,18 +287,18 @@ test.describe("Timer Application", () => {
       (el) => globalThis.getComputedStyle(el).opacity,
     );
 
-    // Проверяем, что либо pointer-events: none, либо opacity < 1
+    // Verify that pointer events are disabled or opacity is reduced.
     const isDisabled = pointerEvents === "none" || parseFloat(opacity) < 1;
     expect(isDisabled).toBe(true);
 
-    // Попытка кликнуть не должна изменить значение
+    // Clicking the link should not change the input value.
     const currentValue = await window.locator("#secondsInput").inputValue();
     await quickLink.click({ force: true });
     await expect(window.locator("#secondsInput")).toHaveValue(currentValue);
   });
 
   test("должен правильно парсить различные форматы времени", async () => {
-    // Тестируем разные форматы
+    // Test several duration formats.
     const formats = [
       { input: "60s", expected: "60s" },
       { input: "1m", expected: "1m" },
@@ -310,67 +310,67 @@ test.describe("Timer Application", () => {
       await window.fill("#secondsInput", format.input);
       await window.click("#startBtn");
 
-      // Проверяем, что таймер запустился (кнопка запуска неактивна)
+      // Verify that the timer started by checking the start button.
       await expect(window.locator("#startBtn")).toBeDisabled();
 
-      // Останавливаем для следующего теста
+      // Stop the timer before the next case.
       await window.click("#stopBtn");
     }
   });
 
   test("должен показывать статус таймера", async () => {
-    // Проверяем начальный статус
+    // Check the initial status.
     const status = window.locator("#status");
 
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "10s");
     await window.click("#startBtn");
 
-    // Проверяем статус "Таймер запущен..."
+    // Check the "Timer started" status.
     await expect(status).toContainText("Timer started");
 
-    // Ставим на паузу
+    // Pause the timer.
     await window.click("#pauseBtn");
     await expect(status).toContainText("Timer paused");
 
-    // Останавливаем
+    // Stop the timer.
     await window.click("#stopBtn");
     await expect(status).toContainText("Timer stopped");
   });
 
   test("должен блокировать кнопки изменения времени когда таймер не запущен", async () => {
     await window.locator("#advancedControlsToggle").check();
-    // Кнопки изменения времени запущенного таймера должны быть заблокированы
+    // Running-timer adjustment buttons should be disabled.
     await expect(window.locator("#adjustPlus1m")).toBeDisabled();
     await expect(window.locator("#adjustMinus1m")).toBeDisabled();
 
-    // Запускаем таймер
+    // Start the timer.
     await window.fill("#secondsInput", "10s");
     await window.click("#startBtn");
 
-    // Теперь кнопки должны быть активны
+    // The buttons should now be enabled.
     await expect(window.locator("#adjustPlus1m")).toBeEnabled();
     await expect(window.locator("#adjustMinus1m")).toBeEnabled();
   });
 
   test("должен работать с большими значениями времени", async () => {
-    // Устанавливаем большое время (2 часа)
+    // Set a long duration (two hours).
     await window.fill("#secondsInput", "2h");
     await window.click("#startBtn");
 
-    // Проверяем, что таймер запустился
+    // Verify that the timer started.
     await expect(window.locator("#startBtn")).toBeDisabled();
 
-    // Проверяем, что отображается время (не 0с (00:00))
+    // Verify that the display shows a nonzero duration.
     const timerText = await window.locator("#timerDisplay").textContent();
     expect(timerText).not.toContain("0s (00:00)");
 
-    // Останавливаем
+    // Stop the timer.
     await window.click("#stopBtn");
   });
 
   test("должен сворачивать окно в трей", async () => {
-    // Убеждаемся, что окно видимо (перед тестом оно должно быть показано в beforeEach)
+    // Ensure that the window is visible; beforeEach should show it.
     const isVisibleBefore = await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
       if (windows.length > 0 && !windows[0].isVisible()) {
@@ -381,13 +381,13 @@ test.describe("Timer Application", () => {
     });
     expect(isVisibleBefore).toBe(true);
 
-    // Эмулируем клик по иконке трея для сворачивания окна
+    // Simulate a tray-icon click to hide the window.
     await electronApp.evaluate(() => {
       const getTray = globalThis.__tray__;
       if (getTray) {
         const tray = getTray();
         if (tray) {
-          // Эмулируем событие клика по трею
+          // Simulate a tray-icon click event.
           tray.emit("click");
         }
       }
@@ -403,7 +403,7 @@ test.describe("Timer Application", () => {
   });
 
   test("должен показывать окно из трея", async () => {
-    // Сначала сворачиваем окно в трей
+    // Hide the window to the tray first.
     await window.evaluate(() => {
       document.defaultView?.electronAPI?.minimizeWindow();
     });
@@ -415,20 +415,20 @@ test.describe("Timer Application", () => {
       )
       .toBe(false);
 
-    // Проверяем, что окно скрыто
+    // Verify that the window is hidden.
     const isVisibleBefore = await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
       return windows.length > 0 && windows[0].isVisible();
     });
     expect(isVisibleBefore).toBe(false);
 
-    // Эмулируем клик по иконке трея - вызываем событие 'click' напрямую
+    // Simulate a tray-icon click by emitting the click event directly.
     await electronApp.evaluate(() => {
       const getTray = globalThis.__tray__;
       if (getTray) {
         const tray = getTray();
         if (tray) {
-          // Эмулируем событие клика по трею
+          // Simulate a tray-icon click event.
           tray.emit("click");
         }
       }
@@ -442,25 +442,25 @@ test.describe("Timer Application", () => {
       )
       .toBe(true);
 
-    // Проверяем, что окно снова видимо
+    // Verify that the window is visible again.
     const isVisibleAfter = await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
       return windows.length > 0 && windows[0].isVisible();
     });
     expect(isVisibleAfter).toBe(true);
 
-    // Убеждаемся, что элементы интерфейса доступны
+    // Ensure that the UI elements are available.
     await window.waitForSelector("#timerDisplay", { timeout: 5000 });
   });
 
   test("должен сохранять состояние при сворачивании и разворачивании", async () => {
-    // Устанавливаем время и запускаем таймер
+    // Set a duration and start the timer.
     await window.fill("#secondsInput", "30s");
     await window.click("#startBtn");
-    // Запоминаем состояние таймера
+    // Record the timer state.
     const timerTextBefore = await window.locator("#timerDisplay").textContent();
 
-    // Сворачиваем в трей через клик по иконке трея
+    // Hide the app using the tray icon.
     await electronApp.evaluate(() => {
       const getTray = globalThis.__tray__;
       if (getTray) {
@@ -470,7 +470,7 @@ test.describe("Timer Application", () => {
         }
       }
     });
-    // Показываем окно обратно через клик по иконке трея
+    // Show the app again using the tray icon.
     await electronApp.evaluate(() => {
       const getTray = globalThis.__tray__;
       if (getTray) {
@@ -480,13 +480,13 @@ test.describe("Timer Application", () => {
         }
       }
     });
-    // Ждем загрузки элементов
+    // Wait for the UI elements to load.
     await window.waitForSelector("#timerDisplay", { timeout: 5000 });
 
-    // Проверяем, что таймер продолжает работать
+    // Verify that the timer is still running.
     const isRunningAfter = await window.locator("#startBtn").isDisabled();
 
-    // Таймер должен продолжать работать (время должно измениться)
+    // Verify that the timer keeps counting down.
     expect(isRunningAfter).toBe(true);
     await expect
       .poll(() => window.locator("#timerDisplay").textContent(), {
@@ -494,7 +494,7 @@ test.describe("Timer Application", () => {
       })
       .not.toBe(timerTextBefore);
 
-    // Останавливаем таймер
+    // Stop the timer.
     await window.click("#stopBtn");
   });
 
@@ -750,7 +750,7 @@ test("a second instance cannot overwrite the running instance settings", async (
 
 test.describe("Timer Application - Initial State", () => {
   test("должен запускаться свернутым в трей", async () => {
-    // Запускаем новое Electron приложение для проверки начального состояния
+    // Launch a new Electron app to verify its initial state.
     const electronPath = require("electron");
     const mainPath = path.join(__dirname, "../../dist/main.js");
     const isolatedSettingsPath = path.join(
@@ -777,10 +777,10 @@ test.describe("Timer Application - Initial State", () => {
     });
 
     try {
-      // Получаем первое окно приложения
+      // Get the app's first window.
       const testWindow = await testApp.firstWindow();
 
-      // Ждем загрузки приложения
+      // Wait for the app to load.
       await testWindow.waitForLoadState("domcontentloaded");
 
       await expect
@@ -791,7 +791,7 @@ test.describe("Timer Application - Initial State", () => {
         )
         .toBe(false);
     } finally {
-      // Закрываем тестовое приложение
+      // Close the test app.
       await testApp.close();
       if (fs.existsSync(isolatedSettingsPath))
         fs.unlinkSync(isolatedSettingsPath);
