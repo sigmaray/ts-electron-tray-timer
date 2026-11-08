@@ -5,8 +5,17 @@ let notification: Notification | null = null;
 let isPaused: boolean = false;
 let isRunning: boolean = false;
 
+function setStatus(message: string, state: 'running' | 'paused' | 'stopped' | 'error' | 'neutral'): void {
+  const status = document.getElementById('status');
+  if (!status) return;
+  status.textContent = message;
+  status.dataset.state = state;
+}
+
 // Типы для electronAPI
 interface ElectronAPI {
+  getUiSettings: () => Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>;
+  setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => void;
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
   minimizeWindow: () => void;
   closeApp: () => void;
@@ -244,23 +253,19 @@ function startTimer(): void {
   const seconds = parseTimeInput(input.value);
 
   if (seconds === null || seconds < 1) {
-    const status = document.getElementById('status');
-    if (status) {
-      status.textContent = 'Enter a valid duration (for example: 500, 1m, 1h, 1d)';
-    }
+    setStatus('Enter a valid duration (for example: 500, 1m, 1h, 1d)', 'error');
     return;
   }
 
   const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
   const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
-  const status = document.getElementById('status');
 
   if (startBtn) startBtn.disabled = true;
   if (stopBtn) stopBtn.disabled = false;
   if (pauseBtn) pauseBtn.disabled = false;
   input.disabled = true;
-  if (status) status.textContent = 'Timer started...';
+  setStatus('Timer started...', 'running');
 
   // Отправляем команду в main процесс
   const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
@@ -409,14 +414,45 @@ function dismissNotification(): void {
   updateDismissButton();
   sendTimerUpdate();
   
-  const status = document.getElementById('status');
-  if (status) {
-    status.textContent = 'Alert dismissed';
-  }
+  setStatus('Alert dismissed', 'neutral');
 }
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
+  setStatus('Timer is not set', 'stopped');
+
+  const advancedControlsToggle = document.getElementById('advancedControlsToggle') as HTMLInputElement | null;
+  const instructionsToggle = document.getElementById('instructionsToggle') as HTMLInputElement | null;
+  const advancedControls = document.getElementById('advancedControls');
+  const timeAdjustDescription = document.getElementById('timeAdjustDescription');
+  const instructions = document.getElementById('instructions');
+  const applyVisibilitySettings = (settings: { advancedControlsVisible: boolean; instructionsVisible: boolean }) => {
+    if (advancedControlsToggle) advancedControlsToggle.checked = settings.advancedControlsVisible;
+    if (instructionsToggle) instructionsToggle.checked = settings.instructionsVisible;
+    if (advancedControls) advancedControls.hidden = !settings.advancedControlsVisible;
+    if (timeAdjustDescription) timeAdjustDescription.hidden = !settings.instructionsVisible;
+    if (instructions) instructions.hidden = !settings.instructionsVisible;
+  };
+
+  const settingsApi = (window as any).electronAPI as ElectronAPI | undefined;
+  if (settingsApi) {
+    settingsApi.getUiSettings().then(applyVisibilitySettings).catch(() => {
+      applyVisibilitySettings({ advancedControlsVisible: false, instructionsVisible: false });
+    });
+  }
+
+  advancedControlsToggle?.addEventListener('change', () => {
+    const enabled = advancedControlsToggle.checked;
+    if (advancedControls) advancedControls.hidden = !enabled;
+    settingsApi?.setUiSettings({ advancedControlsVisible: enabled });
+  });
+  instructionsToggle?.addEventListener('change', () => {
+    const enabled = instructionsToggle.checked;
+    if (instructions) instructions.hidden = !enabled;
+    if (timeAdjustDescription) timeAdjustDescription.hidden = !enabled;
+    settingsApi?.setUiSettings({ instructionsVisible: enabled });
+  });
+
   // Запрашиваем разрешение на уведомления при загрузке
   if (Notification.permission === 'default') {
     Notification.requestPermission();
@@ -453,8 +489,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (input) input.disabled = state.isRunning || state.isPaused;
       if (status) {
-        status.textContent = state.isPaused ? 'Timer paused' : 
-                           (state.isRunning ? 'Timer started...' : 'Timer stopped');
+        setStatus(
+          state.isPaused ? 'Timer paused' : state.isRunning ? 'Timer started...' : 'Timer stopped',
+          state.isPaused ? 'paused' : state.isRunning ? 'running' : 'stopped'
+        );
       }
       
       // Обновляем состояние кнопок изменения input (включая quick-links)

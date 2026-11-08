@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // Предоставляем безопасный API для renderer процесса
 contextBridge.exposeInMainWorld('electronAPI', {
+  getUiSettings: () => ipcRenderer.invoke('ui-settings-get') as Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>,
+  setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
+    ipcRenderer.send('ui-settings-set', settings);
+  },
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
     ipcRenderer.send('timer-state-update', state);
   },

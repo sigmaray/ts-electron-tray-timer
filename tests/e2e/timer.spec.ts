@@ -1,11 +1,15 @@
 import { test, expect, _electron as electron } from '@playwright/test';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
 test.describe('Timer Application', () => {
   let electronApp: any;
   let window: any;
+  const settingsPath = path.join(os.tmpdir(), `electron-tray-timer-test-${process.pid}.json`);
 
   test.beforeAll(async () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ version: 1, timer: null, countdownWindowVisible: false }));
     // Запускаем реальное Electron приложение
     const electronPath = require('electron');
     const mainPath = path.join(__dirname, '../../dist/main.js');
@@ -16,6 +20,7 @@ test.describe('Timer Application', () => {
       env: {
         ...process.env,
         ELECTRON_DISABLE_SANDBOX: '1',
+        TIMER_SETTINGS_PATH: settingsPath,
       },
     });
 
@@ -46,6 +51,7 @@ test.describe('Timer Application', () => {
     if (electronApp) {
       await electronApp.close();
     }
+    if (fs.existsSync(settingsPath)) fs.unlinkSync(settingsPath);
   });
 
   test.beforeEach(async () => {
@@ -75,7 +81,7 @@ test.describe('Timer Application', () => {
   test('должен отображать начальное состояние', async () => {
     // Проверяем, что таймер показывает 0с (00:00)
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).toContain('0с');
+    expect(timerText).toContain('0s');
     expect(timerText).toContain('(00:00)');
     
     // Проверяем, что кнопка запуска активна
@@ -84,6 +90,23 @@ test.describe('Timer Application', () => {
     // Проверяем, что кнопки паузы и остановки неактивны
     await expect(window.locator('#pauseBtn')).toBeDisabled();
     await expect(window.locator('#stopBtn')).toBeDisabled();
+    await expect(window.locator('#status')).toHaveText('Timer is not set');
+    await expect(window.locator('#advancedControlsToggle')).not.toBeChecked();
+    await expect(window.locator('#instructionsToggle')).not.toBeChecked();
+    await expect(window.locator('.visibility-toggles')).toBeVisible();
+    const sectionsInOrder = await window.evaluate(() => {
+      const timer = document.querySelector('.timer-section')!;
+      const toggles = document.querySelector('.visibility-toggles')!;
+      const advanced = document.querySelector('#advancedControls')!;
+      const instructions = document.querySelector('#instructions')!;
+      const follows = (first: Element, second: Element) =>
+        (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      return follows(timer, toggles) && follows(toggles, advanced) && follows(advanced, instructions);
+    });
+    expect(sectionsInOrder).toBe(true);
+    await expect(window.locator('#advancedControls')).toBeHidden();
+    await expect(window.locator('#timeAdjustDescription')).toBeHidden();
+    await expect(window.locator('#instructions')).toBeHidden();
   });
 
   test('должен запускать таймер с заданным временем', async () => {
@@ -109,7 +132,7 @@ test.describe('Timer Application', () => {
     // Проверяем, что таймер начал отсчет (не 0с (00:00))
     await window.waitForTimeout(500);
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).not.toContain('0с (00:00)');
+    expect(timerText).not.toContain('0s (00:00)');
   });
 
   test('должен останавливать таймер', async () => {
@@ -131,7 +154,7 @@ test.describe('Timer Application', () => {
     
     // Проверяем, что таймер остановлен
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).toContain('0с');
+    expect(timerText).toContain('0s');
     expect(timerText).toContain('(00:00)');
     
     // Проверяем, что кнопка запуска активна
@@ -156,7 +179,7 @@ test.describe('Timer Application', () => {
     await window.waitForTimeout(300);
     
     // Проверяем, что кнопка показывает "Возобновить"
-    await expect(window.locator('#pauseBtn')).toHaveText('Возобновить');
+    await expect(window.locator('#pauseBtn')).toHaveText('Resume');
     
     // Запоминаем время на паузе
     const pausedTime = await window.locator('#timerDisplay').textContent();
@@ -172,7 +195,7 @@ test.describe('Timer Application', () => {
     await window.waitForTimeout(300);
     
     // Проверяем, что кнопка показывает "Пауза"
-    await expect(window.locator('#pauseBtn')).toHaveText('Пауза');
+    await expect(window.locator('#pauseBtn')).toHaveText('Pause');
     
     // Ждем немного - время должно измениться
     await window.waitForTimeout(1500);
@@ -227,6 +250,7 @@ test.describe('Timer Application', () => {
   });
 
   test('должен изменять время запущенного таймера через кнопки изменения времени', async () => {
+    await window.locator('#advancedControlsToggle').check();
     // Запускаем таймер на 30 секунд
     await window.fill('#secondsInput', '30s');
     await window.click('#startBtn');
@@ -321,20 +345,21 @@ test.describe('Timer Application', () => {
     await window.waitForTimeout(300);
     
     // Проверяем статус "Таймер запущен..."
-    await expect(status).toContainText('Таймер запущен');
+    await expect(status).toContainText('Timer started');
     
     // Ставим на паузу
     await window.click('#pauseBtn');
     await window.waitForTimeout(300);
-    await expect(status).toContainText('Таймер на паузе');
+    await expect(status).toContainText('Timer paused');
     
     // Останавливаем
     await window.click('#stopBtn');
     await window.waitForTimeout(300);
-    await expect(status).toContainText('Таймер остановлен');
+    await expect(status).toContainText('Timer stopped');
   });
 
   test('должен блокировать кнопки изменения времени когда таймер не запущен', async () => {
+    await window.locator('#advancedControlsToggle').check();
     // Кнопки изменения времени запущенного таймера должны быть заблокированы
     await expect(window.locator('#adjustPlus1m')).toBeDisabled();
     await expect(window.locator('#adjustMinus1m')).toBeDisabled();
@@ -364,7 +389,7 @@ test.describe('Timer Application', () => {
     
     // Проверяем, что отображается время (не 0с (00:00))
     const timerText = await window.locator('#timerDisplay').textContent();
-    expect(timerText).not.toContain('0с (00:00)');
+    expect(timerText).not.toContain('0s (00:00)');
     
     // Останавливаем
     await window.click('#stopBtn');
@@ -496,6 +521,52 @@ test.describe('Timer Application', () => {
     // Останавливаем таймер
     await window.click('#stopBtn');
   });
+
+  test('сохраняет настройки видимости блоков и восстанавливает их после перезапуска', async () => {
+    const advancedToggle = window.locator('#advancedControlsToggle');
+    const instructionsToggle = window.locator('#instructionsToggle');
+
+    await advancedToggle.check();
+    await expect(window.locator('#advancedControls')).toBeVisible();
+    await expect(window.locator('#timeAdjustDescription')).toBeHidden();
+    await expect(window.locator('#instructions')).toBeHidden();
+
+    await instructionsToggle.check();
+    await expect(window.locator('#instructions')).toBeVisible();
+    await expect(window.locator('#timeAdjustDescription')).toBeVisible();
+    await instructionsToggle.uncheck();
+    await expect(window.locator('#instructions')).toBeHidden();
+    await expect(window.locator('#timeAdjustDescription')).toBeHidden();
+    await instructionsToggle.check();
+    await expect(window.locator('#timeAdjustDescription')).toBeVisible();
+    await advancedToggle.uncheck();
+    await expect(window.locator('#advancedControls')).toBeHidden();
+    await expect(window.locator('#timeAdjustDescription')).toBeHidden();
+    await expect(instructionsToggle).toBeChecked();
+    await advancedToggle.check();
+
+    await expect.poll(() => JSON.parse(fs.readFileSync(settingsPath, 'utf8'))).toMatchObject({
+      advancedControlsVisible: true,
+      instructionsVisible: true,
+    });
+
+    await electronApp.close();
+    const electronPath = require('electron');
+    const mainPath = path.join(__dirname, '../../dist/main.js');
+    electronApp = await electron.launch({
+      executablePath: electronPath,
+      args: [mainPath],
+      env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', TIMER_SETTINGS_PATH: settingsPath },
+    });
+    window = await electronApp.firstWindow();
+    await window.waitForLoadState('domcontentloaded');
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.show());
+    await expect(window.locator('#advancedControlsToggle')).toBeChecked();
+    await expect(window.locator('#instructionsToggle')).toBeChecked();
+    await expect(window.locator('#advancedControls')).toBeVisible();
+    await expect(window.locator('#timeAdjustDescription')).toBeVisible();
+    await expect(window.locator('#instructions')).toBeVisible();
+  });
 });
 
 test.describe('Timer Application - Initial State', () => {
@@ -503,6 +574,8 @@ test.describe('Timer Application - Initial State', () => {
     // Запускаем новое Electron приложение для проверки начального состояния
     const electronPath = require('electron');
     const mainPath = path.join(__dirname, '../../dist/main.js');
+    const isolatedSettingsPath = path.join(os.tmpdir(), `electron-tray-timer-initial-${process.pid}.json`);
+    fs.writeFileSync(isolatedSettingsPath, JSON.stringify({ version: 1, timer: null, countdownWindowVisible: false }));
     
     const testApp = await electron.launch({
       executablePath: electronPath,
@@ -510,6 +583,7 @@ test.describe('Timer Application - Initial State', () => {
       env: {
         ...process.env,
         ELECTRON_DISABLE_SANDBOX: '1',
+        TIMER_SETTINGS_PATH: isolatedSettingsPath,
       },
     });
 
@@ -533,6 +607,7 @@ test.describe('Timer Application - Initial State', () => {
     } finally {
       // Закрываем тестовое приложение
       await testApp.close();
+      if (fs.existsSync(isolatedSettingsPath)) fs.unlinkSync(isolatedSettingsPath);
     }
   });
 });

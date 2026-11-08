@@ -58,12 +58,18 @@ type PersistedSettings = {
   version: number;
   timer: PersistedTimer | null;
   countdownWindowVisible: boolean;
+  advancedControlsVisible?: boolean;
+  instructionsVisible?: boolean;
 };
+
+let advancedControlsVisible = false;
+let instructionsVisible = false;
 
 const SETTINGS_VERSION = 1;
 const SETTINGS_FILE_NAME = 'settings.json';
 
 function getSettingsPath(): string {
+  if (process.env.TIMER_SETTINGS_PATH) return process.env.TIMER_SETTINGS_PATH;
   const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
   return path.join(baseDir, SETTINGS_FILE_NAME);
 }
@@ -103,6 +109,8 @@ function saveSettings(): void {
     version: SETTINGS_VERSION,
     timer,
     countdownWindowVisible,
+    advancedControlsVisible,
+    instructionsVisible,
   };
 
   try {
@@ -117,6 +125,8 @@ function restoreSettings(): void {
   if (!settings) return;
 
   isRestoringSettings = true;
+  advancedControlsVisible = settings.advancedControlsVisible === true;
+  instructionsVisible = settings.instructionsVisible === true;
 
   // На старте считаем, что "alerting" состояние не нужно восстанавливать.
   timerState.isAlerting = false;
@@ -686,6 +696,17 @@ function initializeApp(): void {
   // Восстанавливаем состояние из settings.json.
   // Важно: делаем это после createTray/createWindow, чтобы старт таймера мог обновить UI/трей.
   restoreSettings();
+
+  ipcMain.handle('ui-settings-get', () => ({ advancedControlsVisible, instructionsVisible }));
+  ipcMain.on('ui-settings-set', (_event, settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
+    if (typeof settings?.advancedControlsVisible === 'boolean') {
+      advancedControlsVisible = settings.advancedControlsVisible;
+    }
+    if (typeof settings?.instructionsVisible === 'boolean') {
+      instructionsVisible = settings.instructionsVisible;
+    }
+    saveSettings();
+  });
 
   // Обработчик обновлений состояния таймера (для обратной совместимости с уведомлениями)
   ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
