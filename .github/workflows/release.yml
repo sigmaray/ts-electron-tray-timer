@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       datetime: ${{ steps.datetime.outputs.datetime }}
       version: ${{ steps.version.outputs.version }}
@@ -33,7 +33,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-24.04, windows-latest, macos-latest]
 
     steps:
     - name: Checkout code
@@ -46,7 +46,7 @@ jobs:
         cache: 'npm'
 
     - name: Install system dependencies (Linux)
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-24.04'
       run: |
         sudo apt-get update
         sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
@@ -113,7 +113,7 @@ jobs:
 
   create-release:
     needs: [prepare, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -137,7 +137,7 @@ jobs:
           - Linux
           - macOS
         files: |
-          artifacts/release-ubuntu-latest/*.zip
+          artifacts/release-ubuntu-24.04/*.zip
           artifacts/release-windows-latest/*.zip
           artifacts/release-macos-latest/*.zip
         draft: false

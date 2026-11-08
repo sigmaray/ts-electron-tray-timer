@@ -77,7 +77,8 @@ function getSettingsPath(): string {
 
   const userDataPath = path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
   const portableMarkerPath = path.join(process.resourcesPath, "portable-mode");
-  if (!app.isPackaged || !fs.existsSync(portableMarkerPath)) return userDataPath;
+  if (!app.isPackaged || !fs.existsSync(portableMarkerPath))
+    return userDataPath;
 
   try {
     fs.accessSync(process.resourcesPath, fs.constants.W_OK);
@@ -106,13 +107,17 @@ function loadSettings(): PersistedSettings | null {
   );
 
   if (!existedBeforeLoad) {
-    console.info("[settings] File is missing; creating it with default settings.");
+    console.info(
+      "[settings] File is missing; creating it with default settings.",
+    );
     saveSettings();
     settingsPath = getSettingsPath();
     if (fs.existsSync(settingsPath)) {
       console.info(`[settings] Created settings file: ${settingsPath}`);
     } else {
-      console.error(`[settings] Could not create settings file: ${settingsPath}`);
+      console.error(
+        `[settings] Could not create settings file: ${settingsPath}`,
+      );
     }
     return null;
   }
