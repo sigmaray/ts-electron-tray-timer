@@ -67,12 +67,34 @@ let instructionsVisible = false;
 
 const SETTINGS_VERSION = 1 as const;
 const SETTINGS_FILE_NAME = "settings.json";
+let settingsPathOverride: string | null = null;
 let ownsInstanceLock = !ALLOW_ONLY_ONE_INSTANCE;
 
-/** Resolve the settings file path, honoring the test override when present. */
+/** Resolve the settings path, preferring writable portable storage when enabled. */
 function getSettingsPath(): string {
   if (process.env.TIMER_SETTINGS_PATH) return process.env.TIMER_SETTINGS_PATH;
-  return path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
+  if (settingsPathOverride) return settingsPathOverride;
+
+  const userDataPath = path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
+  const portableMarkerPath = path.join(process.resourcesPath, "portable-mode");
+  if (!app.isPackaged || !fs.existsSync(portableMarkerPath)) return userDataPath;
+
+  try {
+    fs.accessSync(process.resourcesPath, fs.constants.W_OK);
+    const portableSettingsPath = path.join(
+      process.resourcesPath,
+      SETTINGS_FILE_NAME,
+    );
+
+    // Preserve settings from an earlier non-portable installation on first launch.
+    if (!fs.existsSync(portableSettingsPath) && fs.existsSync(userDataPath)) {
+      fs.copyFileSync(userDataPath, portableSettingsPath);
+    }
+    return portableSettingsPath;
+  } catch {
+    // App bundles and AppImages may be read-only; keep settings in the OS location.
+    return userDataPath;
+  }
 }
 
 /** Read and validate persisted settings, returning null when unavailable. */
@@ -127,6 +149,25 @@ function saveSettings(): void {
       "utf8",
     );
   } catch (err) {
+    const userDataPath = path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
+    const isPortablePath =
+      !process.env.TIMER_SETTINGS_PATH && getSettingsPath() !== userDataPath;
+
+    if (isPortablePath) {
+      try {
+        settingsPathOverride = userDataPath;
+        fs.writeFileSync(
+          userDataPath,
+          JSON.stringify(settings, null, 2),
+          "utf8",
+        );
+        return;
+      } catch (fallbackError) {
+        console.error("Failed to save settings.json:", fallbackError);
+        return;
+      }
+    }
+
     console.error("Failed to save settings.json:", err);
   }
 }
