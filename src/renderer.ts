@@ -14,6 +14,7 @@ function setStatus(message: string, state: 'running' | 'paused' | 'stopped' | 'e
 
 // Типы для electronAPI
 interface ElectronAPI {
+  getTimerState: () => Promise<{ seconds: number; isRunning: boolean; isPaused: boolean }>;
   getUiSettings: () => Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>;
   setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => void;
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
@@ -466,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
   if (electronAPI) {
     // Слушаем обновления таймера
-    electronAPI.onTimerUpdate((state) => {
+    const applyTimerState = (state: { seconds: number; isRunning: boolean; isPaused: boolean }) => {
       remainingSeconds = state.seconds;
       isRunning = state.isRunning;
       isPaused = state.isPaused;
@@ -497,7 +498,10 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Обновляем состояние кнопок изменения input (включая quick-links)
       updateInputAdjustButtons();
-    });
+    };
+    electronAPI.onTimerUpdate(applyTimerState);
+    // Subscribe first, then fetch a snapshot so startup restoration cannot be missed.
+    electronAPI.getTimerState().then(applyTimerState).catch(() => {});
     
     // Слушаем завершение таймера
     electronAPI.onTimerFinished(() => {

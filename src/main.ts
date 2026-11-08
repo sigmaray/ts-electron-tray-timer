@@ -67,6 +67,7 @@ let instructionsVisible = false;
 
 const SETTINGS_VERSION = 1;
 const SETTINGS_FILE_NAME = 'settings.json';
+let ownsInstanceLock = !ALLOW_ONLY_ONE_INSTANCE;
 
 function getSettingsPath(): string {
   if (process.env.TIMER_SETTINGS_PATH) return process.env.TIMER_SETTINGS_PATH;
@@ -176,6 +177,14 @@ function getCountdownText(): string {
   return formatTimeForCountdownWindow(remainingSeconds);
 }
 
+function isMainWindowSender(sender: Electron.WebContents): boolean {
+  return !!mainWindow && !mainWindow.isDestroyed() && sender.id === mainWindow.webContents.id;
+}
+
+function isCountdownWindowSender(sender: Electron.WebContents): boolean {
+  return !!countdownWindow && !countdownWindow.isDestroyed() && sender.id === countdownWindow.webContents.id;
+}
+
 function updateCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     const text = getCountdownText();
@@ -216,7 +225,7 @@ function createCountdownWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'countdown-preload.js'),
     },
   });
 
@@ -697,8 +706,20 @@ function initializeApp(): void {
   // Важно: делаем это после createTray/createWindow, чтобы старт таймера мог обновить UI/трей.
   restoreSettings();
 
-  ipcMain.handle('ui-settings-get', () => ({ advancedControlsVisible, instructionsVisible }));
-  ipcMain.on('ui-settings-set', (_event, settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
+  ipcMain.handle('ui-settings-get', (event) => {
+    if (!isMainWindowSender(event.sender)) throw new Error('Unauthorized IPC sender');
+    return { advancedControlsVisible, instructionsVisible };
+  });
+  ipcMain.handle('timer-state-get', (event) => {
+    if (!isMainWindowSender(event.sender)) throw new Error('Unauthorized IPC sender');
+    return {
+    seconds: remainingSeconds,
+    isRunning: !!timerInterval && !isPaused,
+    isPaused,
+    };
+  });
+  ipcMain.on('ui-settings-set', (event, settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
+    if (!isMainWindowSender(event.sender) || !settings || typeof settings !== 'object') return;
     if (typeof settings?.advancedControlsVisible === 'boolean') {
       advancedControlsVisible = settings.advancedControlsVisible;
     }
@@ -709,7 +730,8 @@ function initializeApp(): void {
   });
 
   // Обработчик обновлений состояния таймера (для обратной совместимости с уведомлениями)
-  ipcMain.on('timer-state-update', (_event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
+  ipcMain.on('timer-state-update', (event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
+    if (!isMainWindowSender(event.sender) || !state || typeof state.isAlerting !== 'boolean') return;
     timerState.isAlerting = state.isAlerting;
     
     if (state.isAlerting) {
@@ -722,32 +744,39 @@ function initializeApp(): void {
   });
 
   // Обработчики команд таймера от renderer
-  ipcMain.on('timer-start', (_event, seconds: number) => {
+  ipcMain.on('timer-start', (event, seconds: number) => {
+    if (!isMainWindowSender(event.sender) || !Number.isSafeInteger(seconds) || seconds <= 0) return;
     startTimer(seconds);
   });
 
-  ipcMain.on('timer-stop', () => {
+  ipcMain.on('timer-stop', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     stopTimer();
   });
 
-  ipcMain.on('timer-pause-resume', () => {
+  ipcMain.on('timer-pause-resume', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     pauseResumeTimer();
   });
 
-  ipcMain.on('timer-adjust', (_event, seconds: number) => {
+  ipcMain.on('timer-adjust', (event, seconds: number) => {
+    if (!isMainWindowSender(event.sender) || !Number.isSafeInteger(seconds)) return;
     adjustTimerTime(seconds);
   });
 
   // Окно отсчёта времени
-  ipcMain.on('countdown-window-toggle', () => {
+  ipcMain.on('countdown-window-toggle', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     toggleCountdownWindow();
   });
-  ipcMain.on('countdown-window-close', () => {
+  ipcMain.on('countdown-window-close', (event) => {
+    if (!isCountdownWindowSender(event.sender)) return;
     destroyCountdownWindow();
   });
 
   // Обработчик сворачивания окна в трей
-  ipcMain.on('minimize-window', () => {
+  ipcMain.on('minimize-window', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     if (mainWindow) {
       mainWindow.hide();
       updateTrayMenu();
@@ -755,7 +784,8 @@ function initializeApp(): void {
   });
 
   // Обработчик эмуляции клика по иконке трея (для тестов)
-  ipcMain.on('tray-click', () => {
+  ipcMain.on('tray-click', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     if (tray && mainWindow) {
       // Эмулируем клик по трею - вызываем ту же логику, что и при реальном клике
       if (mainWindow.isVisible()) {
@@ -769,7 +799,8 @@ function initializeApp(): void {
   });
 
   // Обработчик закрытия приложения
-  ipcMain.on('close-app', () => {
+  ipcMain.on('close-app', (event) => {
+    if (!isMainWindowSender(event.sender)) return;
     app.isQuitting = true;
     app.quit();
   });
@@ -787,6 +818,7 @@ function initializeApp(): void {
 // Обеспечиваем, что только один экземпляр приложения может быть запущен (если включено)
 if (ALLOW_ONLY_ONE_INSTANCE) {
   const gotTheLock = app.requestSingleInstanceLock();
+  ownsInstanceLock = gotTheLock;
 
   if (!gotTheLock) {
     // Если другой экземпляр уже запущен, закрываем этот
@@ -820,6 +852,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
-  saveSettings();
+  if (ownsInstanceLock) saveSettings();
 });
 

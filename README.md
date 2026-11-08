@@ -60,7 +60,7 @@ Start the app:
 npm start
 ```
 
-For development with automatic rebuilding:
+For development (builds once, then launches Electron):
 
 ```bash
 npm run dev
