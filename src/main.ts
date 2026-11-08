@@ -24,7 +24,7 @@ if (process.env.NODE_ENV === 'test' || process.env.ELECTRON_DISABLE_SANDBOX) {
 // Константа для управления разрешением только одного экземпляра приложения
 const ALLOW_ONLY_ONE_INSTANCE = process.env.ALLOW_ONLY_ONE_INSTANCE !== 'false';
 
-let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean } = {
+let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean; durationSeconds?: number } = {
   seconds: 0,
   isRunning: false,
   isAlerting: false,
@@ -39,16 +39,20 @@ let remainingSeconds: number = 0;
 let isPaused: boolean = false;
 let lastUpdateTime: number = 0;
 let timerEndTime: number = 0; // Время когда таймер должен закончиться
+let timerDurationSeconds = 0;
 let isRestoringSettings = false;
+let pendingStartupTimerFinished = false;
 
 type PersistedTimer =
   | {
       secondsLeft: number;
+      durationSeconds?: number;
       isPaused: true;
       savedAt: number;
     }
   | {
       secondsLeft: number;
+      durationSeconds?: number;
       isPaused: false;
       timerEndTimestamp: number;
       savedAt: number;
@@ -95,10 +99,11 @@ function saveSettings(): void {
   let timer: PersistedTimer | null = null;
   if (timerInterval && remainingSeconds > 0) {
     if (isPaused) {
-      timer = { secondsLeft: remainingSeconds, isPaused: true, savedAt: Date.now() };
+      timer = { secondsLeft: remainingSeconds, durationSeconds: timerDurationSeconds, isPaused: true, savedAt: Date.now() };
     } else {
       timer = {
         secondsLeft: remainingSeconds,
+        durationSeconds: timerDurationSeconds,
         isPaused: false,
         timerEndTimestamp: timerEndTime,
         savedAt: Date.now(),
@@ -138,6 +143,7 @@ function restoreSettings(): void {
       if (settings.timer.isPaused) {
         // startTimer создаёт таймер-interval, а мы потом переводим его в paused.
         startTimer(settings.timer.secondsLeft);
+        timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
         isPaused = true;
         sendTimerUpdateToRenderer();
       } else {
@@ -146,9 +152,15 @@ function restoreSettings(): void {
           typeof settings.timer.timerEndTimestamp === 'number'
             ? settings.timer.timerEndTimestamp
             : now + settings.timer.secondsLeft * 1000;
-        const secondsLeft = Math.max(0, Math.floor((endTs - now) / 1000));
-        if (secondsLeft > 0) {
-          startTimer(secondsLeft);
+        if (endTs <= now) {
+          timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
+          pendingStartupTimerFinished = true;
+        } else {
+          const secondsLeft = Math.max(0, Math.floor((endTs - now) / 1000));
+          if (secondsLeft > 0) {
+            startTimer(secondsLeft);
+            timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
+          }
         }
       }
     }
@@ -439,7 +451,8 @@ function sendTimerUpdateToRenderer(): void {
     mainWindow.webContents.send('timer-update', {
       seconds: remainingSeconds,
       isRunning: timerInterval !== null && !isPaused,
-      isPaused: isPaused && timerInterval !== null
+      isPaused: isPaused && timerInterval !== null,
+      durationSeconds: timerDurationSeconds,
     });
   }
   
@@ -448,7 +461,8 @@ function sendTimerUpdateToRenderer(): void {
     seconds: remainingSeconds,
     isRunning: timerInterval !== null && !isPaused,
     isAlerting: timerState.isAlerting,
-    isPaused: isPaused && timerInterval !== null
+    isPaused: isPaused && timerInterval !== null,
+    durationSeconds: timerDurationSeconds,
   };
 
   updateTrayIcon();
@@ -461,6 +475,7 @@ function startTimer(seconds: number): void {
   }
   
   remainingSeconds = seconds;
+  timerDurationSeconds = seconds;
   isPaused = false;
   lastUpdateTime = Date.now();
   timerEndTime = lastUpdateTime + (seconds * 1000);
@@ -481,7 +496,7 @@ function startTimer(seconds: number): void {
           stopTimer();
           // Отправляем сигнал о завершении таймера
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('timer-finished');
+            mainWindow.webContents.send('timer-finished', timerDurationSeconds);
           }
         }
       }
@@ -538,6 +553,7 @@ function adjustTimerTime(seconds: number): void {
   if (remainingSeconds < 0) {
     remainingSeconds = 0;
   }
+  timerDurationSeconds = Math.max(0, timerDurationSeconds + seconds);
   
   // Обновляем timerEndTime
   const currentTime = Date.now();
@@ -646,6 +662,13 @@ function createWindow(): void {
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (pendingStartupTimerFinished && mainWindow && !mainWindow.isDestroyed()) {
+      pendingStartupTimerFinished = false;
+      mainWindow.webContents.send('timer-finished-on-startup', timerDurationSeconds);
+    }
+  });
+
   // Скрываем окно после загрузки
   mainWindow.once('ready-to-show', () => {
     if (mainWindow) {
@@ -713,9 +736,10 @@ function initializeApp(): void {
   ipcMain.handle('timer-state-get', (event) => {
     if (!isMainWindowSender(event.sender)) throw new Error('Unauthorized IPC sender');
     return {
-    seconds: remainingSeconds,
-    isRunning: !!timerInterval && !isPaused,
-    isPaused,
+      seconds: remainingSeconds,
+      isRunning: !!timerInterval && !isPaused,
+      isPaused,
+      durationSeconds: timerDurationSeconds,
     };
   });
   ipcMain.on('ui-settings-set', (event, settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {

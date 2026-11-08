@@ -4,6 +4,19 @@ let audioInterval: NodeJS.Timeout | null = null;
 let notification: Notification | null = null;
 let isPaused: boolean = false;
 let isRunning: boolean = false;
+let timerDurationSeconds = 0;
+
+function formatDurationLabel(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remaining = safeSeconds % 60;
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (remaining || parts.length === 0) parts.push(`${remaining}s`);
+  return parts.join(' ');
+}
 
 function setStatus(message: string, state: 'running' | 'paused' | 'stopped' | 'error' | 'neutral'): void {
   const status = document.getElementById('status');
@@ -14,7 +27,7 @@ function setStatus(message: string, state: 'running' | 'paused' | 'stopped' | 'e
 
 // Типы для electronAPI
 interface ElectronAPI {
-  getTimerState: () => Promise<{ seconds: number; isRunning: boolean; isPaused: boolean }>;
+  getTimerState: () => Promise<{ seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }>;
   getUiSettings: () => Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>;
   setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => void;
   updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
@@ -24,8 +37,9 @@ interface ElectronAPI {
   stopTimer: () => void;
   pauseResumeTimer: () => void;
   adjustTimerTime: (seconds: number) => void;
-  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean }) => void) => void;
-  onTimerFinished: (callback: () => void) => void;
+  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }) => void) => void;
+  onTimerFinished: (callback: (durationSeconds: number) => void) => void;
+  onStartupTimerFinished: (callback: (durationSeconds: number) => void) => void;
   removeTimerUpdateListener: () => void;
   removeTimerFinishedListener: () => void;
   toggleCountdownWindow: () => void;
@@ -257,6 +271,7 @@ function startTimer(): void {
     setStatus('Enter a valid duration (for example: 500, 1m, 1h, 1d)', 'error');
     return;
   }
+  timerDurationSeconds = seconds;
 
   const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
@@ -303,48 +318,55 @@ function stopTimer(): void {
   sendTimerUpdate();
 }
 
-function showNotification(): void {
+function showNotification(durationSeconds: number): void {
+  const durationLabel = formatDurationLabel(durationSeconds);
+  const notificationBody = `The ${durationLabel} timer has finished.`;
   // Запрашиваем разрешение на уведомления
   if (Notification.permission === 'default') {
-    Notification.requestPermission();
+    void Notification.requestPermission().catch(() => {});
   }
 
   if (Notification.permission === 'granted') {
-    notification = new Notification('⏰ Time is up!', {
-      body: 'The timer has finished.',
-      requireInteraction: true,
-      tag: 'timer-alert'
-    });
+    try {
+      notification = new Notification('⏰ Time is up!', {
+        body: notificationBody,
+        requireInteraction: true,
+        tag: 'timer-alert'
+      });
 
-    // Останавливаем звук когда уведомление закрыто
-    notification.onclose = () => {
-      stopAlarmSound();
-      notification = null;
+      // Останавливаем звук когда уведомление закрыто
+      notification.onclose = () => {
+        stopAlarmSound();
+        notification = null;
+        updateDismissButton();
+        sendTimerUpdate();
+      };
+
+      // Останавливаем звук при клике на уведомление
+      notification.onclick = () => {
+        stopAlarmSound();
+        if (window.focus) window.focus();
+        notification?.close();
+        updateDismissButton();
+        sendTimerUpdate();
+      };
+
       updateDismissButton();
       sendTimerUpdate();
-    };
-
-    // Останавливаем звук при клике на уведомление
-    notification.onclick = () => {
-      stopAlarmSound();
-      if (window.focus) window.focus();
-      notification?.close();
       updateDismissButton();
-      sendTimerUpdate();
-    };
-    
-    updateDismissButton();
-    sendTimerUpdate();
-    updateDismissButton();
-  } else {
-    // Если уведомления не разрешены, показываем alert
-    alert('⏰ Time is up!');
-    stopAlarmSound();
-    // Создаем фиктивное уведомление для показа кнопки
-    notification = {} as Notification;
-    updateDismissButton();
-    sendTimerUpdate();
+      return;
+    } catch {
+      // Continue with the in-window fallback if the system notification API fails.
+    }
   }
+
+  // Если уведомления не разрешены, показываем alert
+  alert(`⏰ The ${durationLabel} timer has finished!`);
+  stopAlarmSound();
+  // Создаем фиктивное уведомление для показа кнопки
+  notification = {} as Notification;
+  updateDismissButton();
+  sendTimerUpdate();
 }
 
 function playAlarmSound(): void {
@@ -467,10 +489,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
   if (electronAPI) {
     // Слушаем обновления таймера
-    const applyTimerState = (state: { seconds: number; isRunning: boolean; isPaused: boolean }) => {
+    const applyTimerState = (state: { seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }) => {
       remainingSeconds = state.seconds;
       isRunning = state.isRunning;
       isPaused = state.isPaused;
+      timerDurationSeconds = state.durationSeconds || timerDurationSeconds;
       
       updateDisplay();
       updateTimeAdjustButtons();
@@ -491,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (input) input.disabled = state.isRunning || state.isPaused;
       if (status) {
         setStatus(
-          state.isPaused ? 'Timer paused' : state.isRunning ? 'Timer started...' : 'Timer stopped',
+          state.isPaused ? 'Timer paused' : state.isRunning ? 'Timer started...' : timerDurationSeconds > 0 ? `Timer stopped (${formatDurationLabel(timerDurationSeconds)})` : 'Timer stopped',
           state.isPaused ? 'paused' : state.isRunning ? 'running' : 'stopped'
         );
       }
@@ -503,13 +526,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Subscribe first, then fetch a snapshot so startup restoration cannot be missed.
     electronAPI.getTimerState().then(applyTimerState).catch(() => {});
     
-    // Слушаем завершение таймера
-    electronAPI.onTimerFinished(() => {
+    const handleTimerFinished = (durationSeconds: number) => {
+      if (Number.isFinite(durationSeconds) && durationSeconds > 0) timerDurationSeconds = durationSeconds;
       stopTimer();
-      showNotification();
+      showNotification(timerDurationSeconds);
       playAlarmSound();
+      setStatus(`Timer stopped (${formatDurationLabel(timerDurationSeconds)})`, 'stopped');
       sendTimerUpdate();
-    });
+    };
+    // Both a live completion and a missed completion on startup use the same UX.
+    electronAPI.onTimerFinished(handleTimerFinished);
+    electronAPI.onStartupTimerFinished(handleTimerFinished);
 
     // Состояние окна отсчёта времени
     electronAPI.onCountdownWindowState((visible: boolean) => {

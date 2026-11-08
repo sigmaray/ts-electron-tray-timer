@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // Предоставляем безопасный API для renderer процесса
 contextBridge.exposeInMainWorld('electronAPI', {
-  getTimerState: () => ipcRenderer.invoke('timer-state-get') as Promise<{ seconds: number; isRunning: boolean; isPaused: boolean }>,
+  getTimerState: () => ipcRenderer.invoke('timer-state-get') as Promise<{ seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }>,
   getUiSettings: () => ipcRenderer.invoke('ui-settings-get') as Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>,
   setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
     ipcRenderer.send('ui-settings-set', settings);
@@ -33,11 +33,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('timer-adjust', seconds);
   },
   // Слушатели событий от main процесса
-  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean }) => void) => {
+  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }) => void) => {
     ipcRenderer.on('timer-update', (_event, state) => callback(state));
   },
-  onTimerFinished: (callback: () => void) => {
-    ipcRenderer.on('timer-finished', () => callback());
+  onTimerFinished: (callback: (durationSeconds: number) => void) => {
+    ipcRenderer.on('timer-finished', (_event, durationSeconds: number) => callback(durationSeconds));
+  },
+  onStartupTimerFinished: (callback: (durationSeconds: number) => void) => {
+    ipcRenderer.on('timer-finished-on-startup', (_event, durationSeconds: number) => callback(durationSeconds));
   },
   // Удаление слушателей
   removeTimerUpdateListener: () => {

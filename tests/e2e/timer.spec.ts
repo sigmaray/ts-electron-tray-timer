@@ -569,6 +569,59 @@ test.describe('Timer Application', () => {
   });
 });
 
+test('shows a missed timer alert once after restart', async () => {
+  const electronPath = require('electron');
+  const mainPath = path.join(__dirname, '../../dist/main.js');
+  const isolatedSettingsPath = path.join(os.tmpdir(), `electron-tray-timer-expired-${process.pid}.json`);
+  const userDataPath = path.join(os.tmpdir(), `electron-tray-timer-expired-user-${process.pid}`);
+  const launchWithSettings = () => electron.launch({
+    executablePath: electronPath,
+    args: [mainPath, `--user-data-dir=${userDataPath}`],
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SANDBOX: '1',
+      ALLOW_ONLY_ONE_INSTANCE: 'false',
+      TIMER_SETTINGS_PATH: isolatedSettingsPath,
+    },
+  });
+
+  fs.writeFileSync(isolatedSettingsPath, JSON.stringify({
+    version: 1,
+    timer: {
+      secondsLeft: 30,
+      isPaused: false,
+      timerEndTimestamp: Date.now() - 5_000,
+      savedAt: Date.now() - 35_000,
+    },
+    countdownWindowVisible: false,
+  }));
+
+  try {
+    const firstApp = await launchWithSettings();
+    const firstWindow = await firstApp.firstWindow();
+    firstWindow.on('dialog', (dialog) => void dialog.accept());
+    await firstWindow.waitForSelector('#dismissAlertBtn', { state: 'visible', timeout: 10_000 });
+    expect(JSON.parse(fs.readFileSync(isolatedSettingsPath, 'utf8')).timer).toBeNull();
+    await firstApp.close();
+
+    const secondApp = await launchWithSettings();
+    const secondWindow = await secondApp.firstWindow();
+    let unexpectedDialogs = 0;
+    secondWindow.on('dialog', (dialog) => {
+      unexpectedDialogs++;
+      void dialog.accept();
+    });
+    await secondWindow.waitForSelector('#timerDisplay');
+    await expect(secondWindow.locator('#dismissAlertBtn')).toBeHidden();
+    await secondWindow.waitForTimeout(500);
+    expect(unexpectedDialogs).toBe(0);
+    await secondApp.close();
+  } finally {
+    if (fs.existsSync(isolatedSettingsPath)) fs.unlinkSync(isolatedSettingsPath);
+    fs.rmSync(userDataPath, { recursive: true, force: true });
+  }
+});
+
 test.describe('Timer Application - Initial State', () => {
   test('должен запускаться свернутым в трей', async () => {
     // Запускаем новое Electron приложение для проверки начального состояния
