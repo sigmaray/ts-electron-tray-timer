@@ -4,11 +4,15 @@
   "description": "Electron timer app with system tray",
   "main": "dist/main.js",
   "scripts": {
-    "start": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron --no-sandbox .",
-    "dev": "npm run build && ELECTRON_DISABLE_SANDBOX=1 electron --no-sandbox .",
-    "devm": "npm run build && ELECTRON_DISABLE_SANDBOX=1 ALLOW_ONLY_ONE_INSTANCE=false electron --no-sandbox .",
-    "build": "tsc && cp src/index.html src/countdown.html dist/",
-    "typecheck": "tsc --noEmit",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron .",
+    "devm": "npm run build && cross-env ALLOW_ONLY_ONE_INSTANCE=false electron .",
+    "build": "tsc && tsc --project tsconfig.renderer.json && cp src/index.html src/countdown.html dist/",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.tests.json && tsc --project tsconfig.renderer.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write package.json tsconfig.json tsconfig.tests.json tsconfig.renderer.json playwright.config.ts eslint.config.mjs src tests",
+    "format:check": "prettier --check package.json tsconfig.json tsconfig.tests.json tsconfig.renderer.json playwright.config.ts eslint.config.mjs src tests",
+    "test:unit": "npm run build && node --test tests/unit/*.test.mjs",
     "build:electron": "electron-builder --publish never",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -20,11 +24,17 @@
     "canvas": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "^20.19.27",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.40.0",
+    "@types/node": "^20.19.27",
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^26.0.12",
-    "typescript": "^5.3.3"
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.72.1"
   },
   "build": {
     "appId": "com.electron.tray-timer",

@@ -25,7 +25,7 @@
 
 ### Linux
 
-Скачать `electron-tray-timer-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer`)
+Скачать `electron-tray-timer-1.0.0.zip`, разархивировать и запустить `./electron-tray-timer`.
 
 ### Windows
 
@@ -73,15 +73,9 @@ npm run dev
 
 ### Ошибка SUID sandbox на Linux
 
-Если при запуске возникает ошибка с `chrome-sandbox`, есть два способа решения:
-
-1. **Исправить права на файл** (требует sudo):
-   ```bash
-   sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-   ```
-
-2. **Использовать флаг отключения sandbox** (уже настроено в скриптах):
-   Скрипты уже используют `ELECTRON_DISABLE_SANDBOX=1`, что решает проблему автоматически.
+Если Electron сообщает об ошибке `chrome-sandbox`, проверьте системные библиотеки
+и владельца с правами файла `chrome-sandbox`, требуемыми вашим дистрибутивом Linux.
+Приложение запускается с включённой Chromium sandbox.
 
 ## Структура проекта
 

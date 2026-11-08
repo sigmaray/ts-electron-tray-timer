@@ -1,34 +1,48 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, screen } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
-import { createCanvas } from 'canvas';
+import { app, BrowserWindow, Tray, Menu, dialog, screen } from "electron";
+import * as path from "path";
+import * as fs from "fs";
+import {
+  parsePersistedSettings,
+  type PersistedSettings,
+  type PersistedTimer,
+} from "./settings";
+import { MAX_TIMER_SECONDS } from "./time";
+import { registerIpcHandlers } from "./ipc-handlers";
+import {
+  createAppIcon,
+  createTextIcon,
+  formatTimeForTooltip,
+  formatTimeForTray,
+} from "./icons";
 
-// Расширяем тип app для свойства isQuitting
 declare global {
-  namespace Electron {
-    interface App {
-      isQuitting?: boolean;
-    }
-  }
+  var __tray__: (() => Tray | null) | undefined;
 }
 
 let mainWindow: BrowserWindow | null = null;
 let countdownWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isQuitting = false;
 
 // Экспортируем tray для тестирования (только в development режиме)
-if (process.env.NODE_ENV === 'test' || process.env.ELECTRON_DISABLE_SANDBOX) {
-  (global as any).__tray__ = () => tray;
+if (process.env.NODE_ENV === "test") {
+  globalThis.__tray__ = () => tray;
 }
 
 // Константа для управления разрешением только одного экземпляра приложения
-const ALLOW_ONLY_ONE_INSTANCE = process.env.ALLOW_ONLY_ONE_INSTANCE !== 'false';
+const ALLOW_ONLY_ONE_INSTANCE = process.env.ALLOW_ONLY_ONE_INSTANCE !== "false";
 
-let timerState: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean; durationSeconds?: number } = {
+let timerState: {
+  seconds: number;
+  isRunning: boolean;
+  isAlerting: boolean;
+  isPaused?: boolean;
+  durationSeconds?: number;
+} = {
   seconds: 0,
   isRunning: false,
   isAlerting: false,
-  isPaused: false
+  isPaused: false,
 };
 let blinkInterval: NodeJS.Timeout | null = null;
 let isBlinking = false;
@@ -43,49 +57,21 @@ let timerDurationSeconds = 0;
 let isRestoringSettings = false;
 let pendingStartupTimerFinished = false;
 
-type PersistedTimer =
-  | {
-      secondsLeft: number;
-      durationSeconds?: number;
-      isPaused: true;
-      savedAt: number;
-    }
-  | {
-      secondsLeft: number;
-      durationSeconds?: number;
-      isPaused: false;
-      timerEndTimestamp: number;
-      savedAt: number;
-    };
-
-type PersistedSettings = {
-  version: number;
-  timer: PersistedTimer | null;
-  countdownWindowVisible: boolean;
-  advancedControlsVisible?: boolean;
-  instructionsVisible?: boolean;
-};
-
 let advancedControlsVisible = false;
 let instructionsVisible = false;
 
-const SETTINGS_VERSION = 1;
-const SETTINGS_FILE_NAME = 'settings.json';
+const SETTINGS_VERSION = 1 as const;
+const SETTINGS_FILE_NAME = "settings.json";
 let ownsInstanceLock = !ALLOW_ONLY_ONE_INSTANCE;
 
 function getSettingsPath(): string {
   if (process.env.TIMER_SETTINGS_PATH) return process.env.TIMER_SETTINGS_PATH;
-  const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
-  return path.join(baseDir, SETTINGS_FILE_NAME);
+  return path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
 }
 
 function loadSettings(): PersistedSettings | null {
   try {
-    const raw = fs.readFileSync(getSettingsPath(), 'utf8');
-    const parsed = JSON.parse(raw) as PersistedSettings;
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (typeof parsed.version !== 'number') return null;
-    return parsed;
+    return parsePersistedSettings(fs.readFileSync(getSettingsPath(), "utf8"));
   } catch {
     return null;
   }
@@ -94,12 +80,19 @@ function loadSettings(): PersistedSettings | null {
 function saveSettings(): void {
   if (isRestoringSettings) return;
 
-  const countdownWindowVisible = !!(countdownWindow && !countdownWindow.isDestroyed());
+  const countdownWindowVisible = !!(
+    countdownWindow && !countdownWindow.isDestroyed()
+  );
 
   let timer: PersistedTimer | null = null;
   if (timerInterval && remainingSeconds > 0) {
     if (isPaused) {
-      timer = { secondsLeft: remainingSeconds, durationSeconds: timerDurationSeconds, isPaused: true, savedAt: Date.now() };
+      timer = {
+        secondsLeft: remainingSeconds,
+        durationSeconds: timerDurationSeconds,
+        isPaused: true,
+        savedAt: Date.now(),
+      };
     } else {
       timer = {
         secondsLeft: remainingSeconds,
@@ -120,9 +113,13 @@ function saveSettings(): void {
   };
 
   try {
-    fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+    fs.writeFileSync(
+      getSettingsPath(),
+      JSON.stringify(settings, null, 2),
+      "utf8",
+    );
   } catch (err) {
-    console.error('Failed to save settings.json:', err);
+    console.error("Failed to save settings.json:", err);
   }
 }
 
@@ -143,23 +140,26 @@ function restoreSettings(): void {
       if (settings.timer.isPaused) {
         // startTimer создаёт таймер-interval, а мы потом переводим его в paused.
         startTimer(settings.timer.secondsLeft);
-        timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
+        timerDurationSeconds =
+          settings.timer.durationSeconds ?? settings.timer.secondsLeft;
         isPaused = true;
         sendTimerUpdateToRenderer();
       } else {
         const now = Date.now();
         const endTs =
-          typeof settings.timer.timerEndTimestamp === 'number'
+          typeof settings.timer.timerEndTimestamp === "number"
             ? settings.timer.timerEndTimestamp
             : now + settings.timer.secondsLeft * 1000;
         if (endTs <= now) {
-          timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
+          timerDurationSeconds =
+            settings.timer.durationSeconds ?? settings.timer.secondsLeft;
           pendingStartupTimerFinished = true;
         } else {
           const secondsLeft = Math.max(0, Math.floor((endTs - now) / 1000));
           if (secondsLeft > 0) {
             startTimer(secondsLeft);
-            timerDurationSeconds = settings.timer.durationSeconds ?? settings.timer.secondsLeft;
+            timerDurationSeconds =
+              settings.timer.durationSeconds ?? settings.timer.secondsLeft;
           }
         }
       }
@@ -175,14 +175,14 @@ function restoreSettings(): void {
 }
 
 function formatTimeForCountdownWindow(seconds: number): string {
-  if (seconds <= 0) return '—';
-  if (seconds < 60) return '< 1m';
+  if (seconds <= 0) return "—";
+  if (seconds < 60) return "< 1m";
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const parts: string[] = [];
   if (hours > 0) parts.push(`${hours}h`);
   parts.push(`${minutes}m`);
-  return parts.join(' ');
+  return parts.join(" ");
 }
 
 function getCountdownText(): string {
@@ -190,17 +190,25 @@ function getCountdownText(): string {
 }
 
 function isMainWindowSender(sender: Electron.WebContents): boolean {
-  return !!mainWindow && !mainWindow.isDestroyed() && sender.id === mainWindow.webContents.id;
+  return (
+    !!mainWindow &&
+    !mainWindow.isDestroyed() &&
+    sender.id === mainWindow.webContents.id
+  );
 }
 
 function isCountdownWindowSender(sender: Electron.WebContents): boolean {
-  return !!countdownWindow && !countdownWindow.isDestroyed() && sender.id === countdownWindow.webContents.id;
+  return (
+    !!countdownWindow &&
+    !countdownWindow.isDestroyed() &&
+    sender.id === countdownWindow.webContents.id
+  );
 }
 
 function updateCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     const text = getCountdownText();
-    countdownWindow.webContents.send('countdown-update', text);
+    countdownWindow.webContents.send("countdown-update", text);
   }
 }
 
@@ -215,7 +223,8 @@ function createCountdownWindow(): void {
   }
 
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { width: screenWidth, height: screenHeight } =
+    primaryDisplay.workAreaSize;
   const { x: screenX, y: screenY } = primaryDisplay.workArea;
 
   const windowWidth = 280;
@@ -237,27 +246,29 @@ function createCountdownWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'countdown-preload.js'),
+      preload: path.join(__dirname, "countdown-preload.js"),
     },
   });
 
-  countdownWindow.loadFile(path.join(__dirname, 'countdown.html'));
+  countdownWindow.loadFile(path.join(__dirname, "countdown.html"));
 
-  countdownWindow.once('ready-to-show', () => {
+  countdownWindow.once("ready-to-show", () => {
     if (countdownWindow) {
       updateCountdownWindow();
       countdownWindow.show();
       countdownWindow.focus();
       // На Linux окно может оказаться под другими или без фокуса
       countdownWindow.moveTop();
-      if (process.platform === 'linux') {
-        countdownWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      if (process.platform === "linux") {
+        countdownWindow.setVisibleOnAllWorkspaces(true, {
+          visibleOnFullScreen: true,
+        });
       }
       sendCountdownWindowState();
     }
   });
 
-  countdownWindow.on('closed', () => {
+  countdownWindow.on("closed", () => {
     countdownWindow = null;
     sendCountdownWindowState();
   });
@@ -284,14 +295,14 @@ function toggleCountdownWindow(): void {
 function sendCountdownWindowState(): void {
   const visible = !!(countdownWindow && !countdownWindow.isDestroyed());
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('countdown-window-state', visible);
+    mainWindow.webContents.send("countdown-window-state", visible);
   }
 }
 
 function updateTrayMenu(): void {
   if (!tray) return;
   const isVisible = mainWindow?.isVisible() ?? false;
-  const toggleLabel = isVisible ? 'Minimize to tray' : 'Show';
+  const toggleLabel = isVisible ? "Minimize to tray" : "Show";
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -308,19 +319,22 @@ function updateTrayMenu(): void {
       },
     },
     {
-      label: 'Quit',
+      label: "Quit",
       click: async () => {
-        const result = await dialog.showMessageBox(mainWindow || null as any, {
-          type: 'question',
-          buttons: ['Cancel', 'Quit'],
+        const options: Electron.MessageBoxOptions = {
+          type: "question",
+          buttons: ["Cancel", "Quit"],
           defaultId: 0,
           cancelId: 0,
-          title: 'Confirm quit',
-          message: 'Are you sure you want to quit the app?'
-        });
+          title: "Confirm quit",
+          message: "Are you sure you want to quit the app?",
+        };
+        const result = mainWindow
+          ? await dialog.showMessageBox(mainWindow, options)
+          : await dialog.showMessageBox(options);
 
         if (result.response === 1) {
-          app.isQuitting = true;
+          isQuitting = true;
           app.quit();
         }
       },
@@ -330,87 +344,19 @@ function updateTrayMenu(): void {
   tray.setContextMenu(contextMenu);
 }
 
-function createTextIcon(text: string, isBlinking: boolean = false): Electron.NativeImage {
-  const size = 22; // Стандартный размер для трея
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  
-  // Определяем цвет в зависимости от состояния
-  let bgColor: string;
-  let textColor: string = '#FFFFFF';
-  
-  if (isBlinking) {
-    // Мигание: красный
-    bgColor = '#FF0000';
-  } else {
-    // Всегда используем фиолетовый фон (активный таймер и неактивный)
-    bgColor = '#7c3aed';
-  }
-  
-  // Рисуем фон
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, size, size);
-  
-  // Рисуем текст
-  ctx.fillStyle = textColor;
-  ctx.font = 'bold 12px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, size / 2, size / 2);
-  
-  // Конвертируем canvas в buffer
-  const buffer = canvas.toBuffer('image/png');
-  return nativeImage.createFromBuffer(buffer);
-}
-
-function formatTimeForTray(seconds: number): string {
-  if (seconds <= 0) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  
-  const mins = Math.floor(seconds / 60);
-  if (mins < 60) {
-    return `${mins}m`;
-  }
-  
-  // Для больших значений показываем в часах с одной десятичной цифрой
-  const hours = seconds / 3600;
-  return `${hours.toFixed(1)}h`;
-}
-
-function formatTimeForTooltip(seconds: number): string {
-  if (seconds <= 0) return '0s';
-  
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  
-  const parts: string[] = [];
-  if (hours > 0) {
-    parts.push(`${hours}h`);
-  }
-  if (minutes > 0) {
-    parts.push(`${minutes}m`);
-  }
-  if (secs > 0 || parts.length === 0) {
-    parts.push(`${secs}s`);
-  }
-  
-  return parts.join(' ');
-}
-
 function updateTrayIcon(): void {
   if (!tray) return;
-  
+
   let icon: Electron.NativeImage;
   let tooltipText: string;
-  
+
   if (timerState.isAlerting) {
     // Мигание: красная иконка
-    icon = createTextIcon('!', isBlinking);
-    tooltipText = '⏰ Time is up!';
+    icon = createTextIcon("!", isBlinking);
+    tooltipText = "⏰ Time is up!";
   } else if (timerState.isPaused && timerState.seconds > 0) {
     // Таймер на паузе - показываем "p"
-    icon = createTextIcon('p', false);
+    icon = createTextIcon("p", false);
     tooltipText = `Timer paused: ${formatTimeForTooltip(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
     // Показываем оставшиеся секунды
@@ -419,17 +365,17 @@ function updateTrayIcon(): void {
     tooltipText = `Timer: ${formatTimeForTooltip(timerState.seconds)}`;
   } else {
     // Прочерк когда таймер не запущен
-    icon = createTextIcon('—', false);
-    tooltipText = 'Timer is not running';
+    icon = createTextIcon("—", false);
+    tooltipText = "Timer is not running";
   }
-  
+
   tray.setImage(icon);
   tray.setToolTip(tooltipText);
 }
 
 function startBlinking(): void {
   if (blinkInterval) return;
-  
+
   isBlinking = false;
   blinkInterval = setInterval(() => {
     isBlinking = !isBlinking;
@@ -448,14 +394,14 @@ function stopBlinking(): void {
 
 function sendTimerUpdateToRenderer(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('timer-update', {
+    mainWindow.webContents.send("timer-update", {
       seconds: remainingSeconds,
       isRunning: timerInterval !== null && !isPaused,
       isPaused: isPaused && timerInterval !== null,
       durationSeconds: timerDurationSeconds,
     });
   }
-  
+
   // Обновляем состояние для трея
   timerState = {
     seconds: remainingSeconds,
@@ -473,50 +419,53 @@ function startTimer(seconds: number): void {
   if (timerInterval) {
     clearInterval(timerInterval);
   }
-  
+
   remainingSeconds = seconds;
   timerDurationSeconds = seconds;
   isPaused = false;
   lastUpdateTime = Date.now();
-  timerEndTime = lastUpdateTime + (seconds * 1000);
-  
+  timerEndTime = lastUpdateTime + seconds * 1000;
+
   timerInterval = setInterval(() => {
     if (!isPaused) {
       const currentTime = Date.now();
       const elapsedMs = currentTime - lastUpdateTime;
       const elapsedSeconds = Math.floor(elapsedMs / 1000);
-      
+
       if (elapsedSeconds > 0) {
-        remainingSeconds = Math.max(0, Math.floor((timerEndTime - currentTime) / 1000));
+        remainingSeconds = Math.max(
+          0,
+          Math.floor((timerEndTime - currentTime) / 1000),
+        );
         lastUpdateTime = currentTime;
-        
+
         sendTimerUpdateToRenderer();
-        
+
         if (remainingSeconds <= 0) {
           stopTimer();
           // Отправляем сигнал о завершении таймера
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('timer-finished', timerDurationSeconds);
+            mainWindow.webContents.send("timer-finished", timerDurationSeconds);
           }
         }
       }
     }
   }, 100); // Проверяем каждые 100мс для точности
-  
+
   sendTimerUpdateToRenderer();
   saveSettings();
 }
 
 function pauseResumeTimer(): void {
   if (!timerInterval) return;
-  
+
   if (isPaused) {
     // Возобновляем - пересчитываем timerEndTime
     const currentTime = Date.now();
-    timerEndTime = currentTime + (remainingSeconds * 1000);
+    timerEndTime = currentTime + remainingSeconds * 1000;
     lastUpdateTime = currentTime;
   }
-  
+
   isPaused = !isPaused;
   sendTimerUpdateToRenderer();
   saveSettings();
@@ -527,125 +476,64 @@ function stopTimer(): void {
     clearInterval(timerInterval);
     timerInterval = null;
   }
-  
+
   remainingSeconds = 0;
   isPaused = false;
   lastUpdateTime = 0;
   timerEndTime = 0;
-  
+
   sendTimerUpdateToRenderer();
   saveSettings();
 }
 
 function adjustTimerTime(seconds: number): void {
   if (!timerInterval) return;
-  
+
   // Если таймер работает, обновляем оставшееся время
   if (!isPaused) {
     const currentTime = Date.now();
-    remainingSeconds = Math.max(0, Math.floor((timerEndTime - currentTime) / 1000));
+    remainingSeconds = Math.max(
+      0,
+      Math.floor((timerEndTime - currentTime) / 1000),
+    );
     lastUpdateTime = currentTime;
   }
-  
+
   remainingSeconds += seconds;
-  
+
   // Не позволяем времени стать отрицательным
   if (remainingSeconds < 0) {
     remainingSeconds = 0;
   }
-  timerDurationSeconds = Math.max(0, timerDurationSeconds + seconds);
-  
+  remainingSeconds = Math.min(MAX_TIMER_SECONDS, remainingSeconds);
+  timerDurationSeconds = Math.min(
+    MAX_TIMER_SECONDS,
+    Math.max(0, timerDurationSeconds + seconds),
+  );
+
   // Обновляем timerEndTime
   const currentTime = Date.now();
-  timerEndTime = currentTime + (remainingSeconds * 1000);
+  timerEndTime = currentTime + remainingSeconds * 1000;
   lastUpdateTime = currentTime;
-  
+
   sendTimerUpdateToRenderer();
   saveSettings();
 }
 
-function createAppIcon(): Electron.NativeImage {
-  const size = 256; // Большой размер для иконки приложения
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  
-  // Градиентный фон (фиолетовый)
-  const gradient = ctx.createLinearGradient(0, 0, size, size);
-  gradient.addColorStop(0, '#667eea');
-  gradient.addColorStop(1, '#764ba2');
-  
-  // Рисуем закругленный прямоугольник
-  const radius = size * 0.15;
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.moveTo(radius, 0);
-  ctx.lineTo(size - radius, 0);
-  ctx.quadraticCurveTo(size, 0, size, radius);
-  ctx.lineTo(size, size - radius);
-  ctx.quadraticCurveTo(size, size, size - radius, size);
-  ctx.lineTo(radius, size);
-  ctx.quadraticCurveTo(0, size, 0, size - radius);
-  ctx.lineTo(0, radius);
-  ctx.quadraticCurveTo(0, 0, radius, 0);
-  ctx.closePath();
-  ctx.fill();
-  
-  // Рисуем иконку таймера (часы)
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.lineWidth = size * 0.03;
-  
-  // Циферблат
-  const centerX = size / 2;
-  const centerY = size / 2;
-  const clockRadius = size * 0.3;
-  
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, clockRadius, 0, 2 * Math.PI);
-  ctx.stroke();
-  
-  // Стрелки часов (показывают 12:00)
-  const hourLength = clockRadius * 0.5;
-  const minuteLength = clockRadius * 0.7;
-  
-  // Часовая стрелка (12)
-  ctx.beginPath();
-  ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX, centerY - hourLength);
-  ctx.lineWidth = size * 0.04;
-  ctx.stroke();
-  
-  // Минутная стрелка (12)
-  ctx.beginPath();
-  ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX, centerY - minuteLength);
-  ctx.lineWidth = size * 0.025;
-  ctx.stroke();
-  
-  // Центральная точка
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, size * 0.02, 0, 2 * Math.PI);
-  ctx.fill();
-  
-  // Конвертируем canvas в buffer
-  const buffer = canvas.toBuffer('image/png');
-  return nativeImage.createFromBuffer(buffer);
-}
-
 function createWindow(): void {
   const appIcon = createAppIcon();
-  
+
   // Получаем основной монитор
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   const { x, y } = primaryDisplay.workArea;
-  
+
   // Вычисляем позицию для центрирования окна на основном мониторе
   const windowWidth = 800;
   const windowHeight = 900;
   const windowX = x + Math.floor((width - windowWidth) / 2);
   const windowY = y + Math.floor((height - windowHeight) / 2);
-  
+
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
@@ -655,53 +543,59 @@ function createWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
     },
     show: false, // Всегда запускаем приложение свернутым
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.loadFile(path.join(__dirname, "index.html"));
 
-  mainWindow.webContents.once('did-finish-load', () => {
-    if (pendingStartupTimerFinished && mainWindow && !mainWindow.isDestroyed()) {
+  mainWindow.webContents.once("did-finish-load", () => {
+    if (
+      pendingStartupTimerFinished &&
+      mainWindow &&
+      !mainWindow.isDestroyed()
+    ) {
       pendingStartupTimerFinished = false;
-      mainWindow.webContents.send('timer-finished-on-startup', timerDurationSeconds);
+      mainWindow.webContents.send(
+        "timer-finished-on-startup",
+        timerDurationSeconds,
+      );
     }
   });
 
   // Скрываем окно после загрузки
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once("ready-to-show", () => {
     if (mainWindow) {
       mainWindow.hide();
     }
   });
 
   // Обработка закрытия окна - сворачиваем в tray вместо закрытия
-  mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
     }
   });
 
-  mainWindow.on('minimize', () => {
+  mainWindow.on("minimize", () => {
     mainWindow?.hide();
   });
 
-  mainWindow.on('show', updateTrayMenu);
-  mainWindow.on('hide', updateTrayMenu);
+  mainWindow.on("show", updateTrayMenu);
+  mainWindow.on("hide", updateTrayMenu);
 }
 
 function createTray(): void {
   // Начальная иконка с прочерком
-  tray = new Tray(createTextIcon('—', false));
-
+  tray = new Tray(createTextIcon("—", false));
 
   updateTrayMenu();
   updateTrayIcon();
 
   // ЛКМ по иконке: показать/скрыть окно
-  tray.on('click', () => {
+  tray.on("click", () => {
     if (!mainWindow) return;
     if (mainWindow.isVisible()) {
       mainWindow.hide();
@@ -713,7 +607,7 @@ function createTray(): void {
   });
 
   // Двойной клик по иконке также показывает окно
-  tray.on('double-click', () => {
+  tray.on("double-click", () => {
     mainWindow?.show();
     mainWindow?.focus();
     updateTrayMenu();
@@ -729,107 +623,51 @@ function initializeApp(): void {
   // Важно: делаем это после createTray/createWindow, чтобы старт таймера мог обновить UI/трей.
   restoreSettings();
 
-  ipcMain.handle('ui-settings-get', (event) => {
-    if (!isMainWindowSender(event.sender)) throw new Error('Unauthorized IPC sender');
-    return { advancedControlsVisible, instructionsVisible };
-  });
-  ipcMain.handle('timer-state-get', (event) => {
-    if (!isMainWindowSender(event.sender)) throw new Error('Unauthorized IPC sender');
-    return {
+  registerIpcHandlers({
+    isMainWindowSender,
+    isCountdownWindowSender,
+    getUiSettings: () => ({ advancedControlsVisible, instructionsVisible }),
+    setUiSettings: (settings) => {
+      if (typeof settings.advancedControlsVisible === "boolean")
+        advancedControlsVisible = settings.advancedControlsVisible;
+      if (typeof settings.instructionsVisible === "boolean")
+        instructionsVisible = settings.instructionsVisible;
+      saveSettings();
+    },
+    getTimerState: () => ({
       seconds: remainingSeconds,
+      durationSeconds: timerDurationSeconds,
       isRunning: !!timerInterval && !isPaused,
       isPaused,
-      durationSeconds: timerDurationSeconds,
-    };
-  });
-  ipcMain.on('ui-settings-set', (event, settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => {
-    if (!isMainWindowSender(event.sender) || !settings || typeof settings !== 'object') return;
-    if (typeof settings?.advancedControlsVisible === 'boolean') {
-      advancedControlsVisible = settings.advancedControlsVisible;
-    }
-    if (typeof settings?.instructionsVisible === 'boolean') {
-      instructionsVisible = settings.instructionsVisible;
-    }
-    saveSettings();
-  });
-
-  // Обработчик обновлений состояния таймера (для обратной совместимости с уведомлениями)
-  ipcMain.on('timer-state-update', (event, state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => {
-    if (!isMainWindowSender(event.sender) || !state || typeof state.isAlerting !== 'boolean') return;
-    timerState.isAlerting = state.isAlerting;
-    
-    if (state.isAlerting) {
-      startBlinking();
-    } else {
-      stopBlinking();
-    }
-    
-    updateTrayIcon();
-  });
-
-  // Обработчики команд таймера от renderer
-  ipcMain.on('timer-start', (event, seconds: number) => {
-    if (!isMainWindowSender(event.sender) || !Number.isSafeInteger(seconds) || seconds <= 0) return;
-    startTimer(seconds);
-  });
-
-  ipcMain.on('timer-stop', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    stopTimer();
-  });
-
-  ipcMain.on('timer-pause-resume', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    pauseResumeTimer();
-  });
-
-  ipcMain.on('timer-adjust', (event, seconds: number) => {
-    if (!isMainWindowSender(event.sender) || !Number.isSafeInteger(seconds)) return;
-    adjustTimerTime(seconds);
-  });
-
-  // Окно отсчёта времени
-  ipcMain.on('countdown-window-toggle', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    toggleCountdownWindow();
-  });
-  ipcMain.on('countdown-window-close', (event) => {
-    if (!isCountdownWindowSender(event.sender)) return;
-    destroyCountdownWindow();
-  });
-
-  // Обработчик сворачивания окна в трей
-  ipcMain.on('minimize-window', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    if (mainWindow) {
-      mainWindow.hide();
+    }),
+    setAlerting: (alerting) => {
+      timerState.isAlerting = alerting;
+      if (alerting) startBlinking();
+      else stopBlinking();
+      updateTrayIcon();
+    },
+    startTimer,
+    stopTimer,
+    pauseResumeTimer,
+    adjustTimerTime,
+    toggleCountdownWindow,
+    closeCountdownWindow: destroyCountdownWindow,
+    minimizeWindow: () => {
+      mainWindow?.hide();
       updateTrayMenu();
-    }
-  });
-
-  // Обработчик эмуляции клика по иконке трея (для тестов)
-  ipcMain.on('tray-click', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    if (tray && mainWindow) {
-      // Эмулируем клик по трею - вызываем ту же логику, что и при реальном клике
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
+    },
+    clickTray: () => {
+      if (!tray || !mainWindow) return;
+      if (mainWindow.isVisible()) mainWindow.hide();
+      else {
         mainWindow.show();
         mainWindow.focus();
       }
       updateTrayMenu();
-    }
+    },
   });
 
-  // Обработчик закрытия приложения
-  ipcMain.on('close-app', (event) => {
-    if (!isMainWindowSender(event.sender)) return;
-    app.isQuitting = true;
-    app.quit();
-  });
-
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     } else {
@@ -849,7 +687,7 @@ if (ALLOW_ONLY_ONE_INSTANCE) {
     app.quit();
   } else {
     // Обрабатываем попытку запуска второго экземпляра
-    app.on('second-instance', () => {
+    app.on("second-instance", () => {
       // Если пользователь пытается запустить второй экземпляр, показываем существующее окно
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
@@ -869,13 +707,12 @@ if (ALLOW_ONLY_ONE_INSTANCE) {
   });
 }
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   // Не закрываем приложение при закрытии всех окон
   // Оно будет работать в tray
 });
 
-app.on('before-quit', () => {
-  app.isQuitting = true;
+app.on("before-quit", () => {
+  isQuitting = true;
   if (ownsInstanceLock) saveSettings();
 });
-

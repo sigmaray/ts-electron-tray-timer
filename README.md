@@ -23,7 +23,7 @@ Open the repository's **Releases** page, choose the latest release, and download
 Download `electron-tray-timer-1.0.0.zip`, extract it, and run:
 
 ```bash
-ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer
+./electron-tray-timer
 ```
 
 ### Windows
@@ -66,19 +66,24 @@ For development (builds once, then launches Electron):
 npm run dev
 ```
 
+## Code checks
+
+```bash
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test:unit
+npm run test:e2e
+```
+
 ## Troubleshooting
 
 ### SUID sandbox error on Linux
 
-If Electron reports an error involving `chrome-sandbox`, try either option:
-
-1. Fix the file permissions (requires `sudo`):
-
-   ```bash
-   sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-   ```
-
-2. Disable the sandbox. The project scripts already set `ELECTRON_DISABLE_SANDBOX=1`.
+If Electron reports an error involving `chrome-sandbox`, check that the required
+system libraries are installed and that the packaged `chrome-sandbox` helper has
+the ownership and permissions required by your Linux distribution. The app keeps
+Chromium's sandbox enabled.
 
 ## Project structure
 

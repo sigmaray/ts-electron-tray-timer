@@ -1,3 +1,5 @@
+import { parseDurationInput } from "./time.js";
+
 let remainingSeconds: number = 0;
 let audioContext: AudioContext | null = null;
 let audioInterval: NodeJS.Timeout | null = null;
@@ -15,45 +17,27 @@ function formatDurationLabel(seconds: number): string {
   if (hours) parts.push(`${hours}h`);
   if (minutes) parts.push(`${minutes}m`);
   if (remaining || parts.length === 0) parts.push(`${remaining}s`);
-  return parts.join(' ');
+  return parts.join(" ");
 }
 
-function setStatus(message: string, state: 'running' | 'paused' | 'stopped' | 'error' | 'neutral'): void {
-  const status = document.getElementById('status');
+function setStatus(
+  message: string,
+  state: "running" | "paused" | "stopped" | "error" | "neutral",
+): void {
+  const status = document.getElementById("status");
   if (!status) return;
   status.textContent = message;
   status.dataset.state = state;
 }
 
-// Типы для electronAPI
-interface ElectronAPI {
-  getTimerState: () => Promise<{ seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }>;
-  getUiSettings: () => Promise<{ advancedControlsVisible: boolean; instructionsVisible: boolean }>;
-  setUiSettings: (settings: { advancedControlsVisible?: boolean; instructionsVisible?: boolean }) => void;
-  updateTimerState: (state: { seconds: number; isRunning: boolean; isAlerting: boolean; isPaused?: boolean }) => void;
-  minimizeWindow: () => void;
-  closeApp: () => void;
-  startTimer: (seconds: number) => void;
-  stopTimer: () => void;
-  pauseResumeTimer: () => void;
-  adjustTimerTime: (seconds: number) => void;
-  onTimerUpdate: (callback: (state: { seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }) => void) => void;
-  onTimerFinished: (callback: (durationSeconds: number) => void) => void;
-  onStartupTimerFinished: (callback: (durationSeconds: number) => void) => void;
-  removeTimerUpdateListener: () => void;
-  removeTimerFinishedListener: () => void;
-  toggleCountdownWindow: () => void;
-  onCountdownWindowState: (callback: (visible: boolean) => void) => void;
-}
-
 function sendTimerUpdate(): void {
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.updateTimerState({
       seconds: remainingSeconds,
       isRunning: isRunning,
       isAlerting: notification !== null,
-      isPaused: isPaused
+      isPaused: isPaused,
     });
   }
 }
@@ -63,7 +47,7 @@ function formatTime(seconds: number): { main: string; secondary: string } {
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
   const totalMins = Math.floor(seconds / 60);
-  
+
   // Формируем строку с часами, минутами и секундами
   const parts: string[] = [];
   if (hours > 0) {
@@ -75,15 +59,15 @@ function formatTime(seconds: number): { main: string; secondary: string } {
   if (secs > 0 || parts.length === 0) {
     parts.push(`${secs}s`);
   }
-  
-  const main = parts.join(' ');
-  const secondary = `(${String(totalMins).padStart(2, '0')}:${String(secs).padStart(2, '0')})`;
-  
+
+  const main = parts.join(" ");
+  const secondary = `(${String(totalMins).padStart(2, "0")}:${String(secs).padStart(2, "0")})`;
+
   return { main, secondary };
 }
 
 function updateDisplay(): void {
-  const display = document.getElementById('timerDisplay');
+  const display = document.getElementById("timerDisplay");
   if (display) {
     const formatted = formatTime(remainingSeconds);
     display.innerHTML = `<div class="timer-display-main">${formatted.main}</div><div class="timer-display-secondary">${formatted.secondary}</div>`;
@@ -93,8 +77,8 @@ function updateDisplay(): void {
 function adjustTime(seconds: number): void {
   // Кнопки работают только если таймер запущен (включая паузу)
   if (!isRunning && !isPaused) return;
-  
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.adjustTimerTime(seconds);
   }
@@ -103,19 +87,25 @@ function adjustTime(seconds: number): void {
 function updateTimeAdjustButtons(): void {
   // Кнопки активны только если таймер запущен (включая паузу)
   const isActive = isRunning || isPaused;
-  
+
   const buttons = [
-    'adjustMinus1h', 'adjustMinus10m', 'adjustMinus5m', 'adjustMinus1m',
-    'adjustPlus1m', 'adjustPlus5m', 'adjustPlus10m', 'adjustPlus1h'
+    "adjustMinus1h",
+    "adjustMinus10m",
+    "adjustMinus5m",
+    "adjustMinus1m",
+    "adjustPlus1m",
+    "adjustPlus5m",
+    "adjustPlus10m",
+    "adjustPlus1h",
   ];
-  
-  buttons.forEach(buttonId => {
+
+  buttons.forEach((buttonId) => {
     const button = document.getElementById(buttonId) as HTMLButtonElement;
     if (button) {
       button.disabled = !isActive;
     }
   });
-  
+
   // Обновляем состояние кнопок изменения input
   updateInputAdjustButtons();
 }
@@ -123,13 +113,13 @@ function updateTimeAdjustButtons(): void {
 function adjustInputTime(seconds: number): void {
   // Кнопки работают только если таймер НЕ запущен
   if (isRunning || isPaused) return;
-  
-  const input = document.getElementById('secondsInput') as HTMLInputElement;
+
+  const input = document.getElementById("secondsInput") as HTMLInputElement;
   if (!input) return;
-  
+
   const currentValue = input.value.trim();
-  const currentSeconds = parseTimeInput(currentValue);
-  
+  const currentSeconds = parseDurationInput(currentValue);
+
   if (currentSeconds === null) {
     // Если не удалось распарсить, устанавливаем минимальное значение
     if (seconds > 0) {
@@ -137,20 +127,20 @@ function adjustInputTime(seconds: number): void {
     }
     return;
   }
-  
+
   const newSeconds = currentSeconds + seconds;
-  
+
   // Не позволяем времени стать отрицательным
   if (newSeconds < 0) {
     return;
   }
-  
+
   input.value = formatTimeInput(newSeconds);
 }
 
 function formatTimeInput(seconds: number): string {
   if (seconds <= 0) {
-    return '1s'; // Минимальное значение
+    return "1s"; // Минимальное значение
   }
   if (seconds < 60) {
     return `${seconds}s`;
@@ -176,19 +166,23 @@ function formatTimeInput(seconds: number): string {
 function updateInputAdjustButtons(): void {
   // Кнопки активны только если таймер НЕ запущен
   const isActive = !isRunning && !isPaused;
-  
+
   const buttons = [
-    'inputAdjustMinus10m', 'inputAdjustMinus5m', 'inputAdjustMinus1m',
-    'inputAdjustPlus1m', 'inputAdjustPlus5m', 'inputAdjustPlus10m'
+    "inputAdjustMinus10m",
+    "inputAdjustMinus5m",
+    "inputAdjustMinus1m",
+    "inputAdjustPlus1m",
+    "inputAdjustPlus5m",
+    "inputAdjustPlus10m",
   ];
-  
-  buttons.forEach(buttonId => {
+
+  buttons.forEach((buttonId) => {
     const button = document.getElementById(buttonId) as HTMLButtonElement;
     if (button) {
       button.disabled = !isActive;
     }
   });
-  
+
   // Обновляем состояние quick-links
   updateQuickLinks();
 }
@@ -196,95 +190,46 @@ function updateInputAdjustButtons(): void {
 function updateQuickLinks(): void {
   // Ссылки активны только если таймер НЕ запущен
   const isActive = !isRunning && !isPaused;
-  
-  const quickLinks = document.querySelectorAll('.quick-link');
-  quickLinks.forEach(link => {
+
+  const quickLinks = document.querySelectorAll(".quick-link");
+  quickLinks.forEach((link) => {
     const linkElement = link as HTMLElement;
     if (isActive) {
-      linkElement.style.opacity = '1';
-      linkElement.style.cursor = 'pointer';
-      linkElement.style.pointerEvents = 'auto';
+      linkElement.style.opacity = "1";
+      linkElement.style.cursor = "pointer";
+      linkElement.style.pointerEvents = "auto";
     } else {
-      linkElement.style.opacity = '0.5';
-      linkElement.style.cursor = 'not-allowed';
-      linkElement.style.pointerEvents = 'none';
+      linkElement.style.opacity = "0.5";
+      linkElement.style.cursor = "not-allowed";
+      linkElement.style.pointerEvents = "none";
     }
   });
 }
 
-function parseTimeInput(inputValue: string): number | null {
-  const trimmed = inputValue.trim();
-  if (!trimmed) return null;
-
-  // Пробуем распарсить как число (секунды)
-  const numberMatch = trimmed.match(/^(\d+)$/);
-  if (numberMatch) {
-    const seconds = parseInt(numberMatch[1], 10);
-    return seconds > 0 ? seconds : null;
-  }
-
-  // Парсим комбинированные форматы типа "1h 30m", "2h 15m 30s"
-  let totalSeconds = 0;
-  let hasMatch = false;
-  
-  // Паттерн для поиска всех единиц времени в строке
-  const timePattern = /(\d+(?:\.\d+)?)\s*([smhd])/gi;
-  let match;
-  
-  while ((match = timePattern.exec(trimmed)) !== null) {
-    const value = parseFloat(match[1]);
-    const unit = match[2].toLowerCase();
-    
-    if (value <= 0 || isNaN(value)) continue;
-    hasMatch = true;
-    
-    switch (unit) {
-      case 's':
-        totalSeconds += Math.floor(value);
-        break;
-      case 'm':
-        totalSeconds += Math.floor(value * 60);
-        break;
-      case 'h':
-        totalSeconds += Math.floor(value * 3600);
-        break;
-      case 'd':
-        totalSeconds += Math.floor(value * 86400); // 24 * 60 * 60
-        break;
-    }
-  }
-  
-  if (hasMatch && totalSeconds > 0) {
-    return totalSeconds;
-  }
-
-  return null;
-}
-
 function startTimer(): void {
-  const input = document.getElementById('secondsInput') as HTMLInputElement;
+  const input = document.getElementById("secondsInput") as HTMLInputElement;
   if (!input) return;
 
-  const seconds = parseTimeInput(input.value);
+  const seconds = parseDurationInput(input.value);
 
   if (seconds === null || seconds < 1) {
-    setStatus('Enter a valid duration (for example: 500, 1m, 1h, 1d)', 'error');
+    setStatus("Enter a valid duration (for example: 500, 1m, 1h, 1d)", "error");
     return;
   }
   timerDurationSeconds = seconds;
 
-  const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-  const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-  const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
+  const startBtn = document.getElementById("startBtn") as HTMLButtonElement;
+  const stopBtn = document.getElementById("stopBtn") as HTMLButtonElement;
+  const pauseBtn = document.getElementById("pauseBtn") as HTMLButtonElement;
 
   if (startBtn) startBtn.disabled = true;
   if (stopBtn) stopBtn.disabled = false;
   if (pauseBtn) pauseBtn.disabled = false;
   input.disabled = true;
-  setStatus('Timer started...', 'running');
+  setStatus("Timer started...", "running");
 
   // Отправляем команду в main процесс
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.startTimer(seconds);
   }
@@ -293,20 +238,20 @@ function startTimer(): void {
 function pauseResumeTimer(): void {
   if (!isRunning && !isPaused) return;
 
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.pauseResumeTimer();
   }
 }
 
 function stopTimer(): void {
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     electronAPI.stopTimer();
   }
-  
+
   // UI обновится через слушатель onTimerUpdate
-  
+
   // Останавливаем звук если он играет
   stopAlarmSound();
   // Закрываем уведомление если оно активно
@@ -322,16 +267,16 @@ function showNotification(durationSeconds: number): void {
   const durationLabel = formatDurationLabel(durationSeconds);
   const notificationBody = `The ${durationLabel} timer has finished.`;
   // Запрашиваем разрешение на уведомления
-  if (Notification.permission === 'default') {
+  if (Notification.permission === "default") {
     void Notification.requestPermission().catch(() => {});
   }
 
-  if (Notification.permission === 'granted') {
+  if (Notification.permission === "granted") {
     try {
-      notification = new Notification('⏰ Time is up!', {
+      notification = new Notification("⏰ Time is up!", {
         body: notificationBody,
         requireInteraction: true,
-        tag: 'timer-alert'
+        tag: "timer-alert",
       });
 
       // Останавливаем звук когда уведомление закрыто
@@ -372,7 +317,7 @@ function showNotification(durationSeconds: number): void {
 function playAlarmSound(): void {
   // Создаем звуковой сигнал с помощью Web Audio API
   try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioContext = new AudioContextClass();
 
     function playBeep(): void {
@@ -385,10 +330,13 @@ function playAlarmSound(): void {
       gainNode.connect(audioContext.destination);
 
       oscillator.frequency.value = 800; // Частота в Гц
-      oscillator.type = 'sine';
+      oscillator.type = "sine";
 
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.01,
+        audioContext.currentTime + 0.5,
+      );
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.5);
@@ -404,7 +352,7 @@ function playAlarmSound(): void {
       }
     }, 600);
   } catch (e) {
-    console.error('Error playing sound:', e);
+    console.error("Error playing sound:", e);
   }
 }
 
@@ -422,9 +370,11 @@ function stopAlarmSound(): void {
 }
 
 function updateDismissButton(): void {
-  const dismissBtn = document.getElementById('dismissAlertBtn') as HTMLButtonElement;
+  const dismissBtn = document.getElementById(
+    "dismissAlertBtn",
+  ) as HTMLButtonElement;
   if (dismissBtn) {
-    dismissBtn.style.display = notification !== null ? 'block' : 'none';
+    dismissBtn.style.display = notification !== null ? "block" : "none";
   }
 }
 
@@ -436,40 +386,59 @@ function dismissNotification(): void {
   stopAlarmSound();
   updateDismissButton();
   sendTimerUpdate();
-  
-  setStatus('Alert dismissed', 'neutral');
+
+  setStatus("Alert dismissed", "neutral");
 }
 
 // Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-  setStatus('Timer is not set', 'stopped');
+document.addEventListener("DOMContentLoaded", () => {
+  setStatus("Timer is not set", "stopped");
 
-  const advancedControlsToggle = document.getElementById('advancedControlsToggle') as HTMLInputElement | null;
-  const instructionsToggle = document.getElementById('instructionsToggle') as HTMLInputElement | null;
-  const advancedControls = document.getElementById('advancedControls');
-  const timeAdjustDescription = document.getElementById('timeAdjustDescription');
-  const instructions = document.getElementById('instructions');
-  const applyVisibilitySettings = (settings: { advancedControlsVisible: boolean; instructionsVisible: boolean }) => {
-    if (advancedControlsToggle) advancedControlsToggle.checked = settings.advancedControlsVisible;
-    if (instructionsToggle) instructionsToggle.checked = settings.instructionsVisible;
-    if (advancedControls) advancedControls.hidden = !settings.advancedControlsVisible;
-    if (timeAdjustDescription) timeAdjustDescription.hidden = !settings.instructionsVisible;
+  const advancedControlsToggle = document.getElementById(
+    "advancedControlsToggle",
+  ) as HTMLInputElement | null;
+  const instructionsToggle = document.getElementById(
+    "instructionsToggle",
+  ) as HTMLInputElement | null;
+  const advancedControls = document.getElementById("advancedControls");
+  const timeAdjustDescription = document.getElementById(
+    "timeAdjustDescription",
+  );
+  const instructions = document.getElementById("instructions");
+  const applyVisibilitySettings = (settings: {
+    advancedControlsVisible: boolean;
+    instructionsVisible: boolean;
+  }) => {
+    if (advancedControlsToggle)
+      advancedControlsToggle.checked = settings.advancedControlsVisible;
+    if (instructionsToggle)
+      instructionsToggle.checked = settings.instructionsVisible;
+    if (advancedControls)
+      advancedControls.hidden = !settings.advancedControlsVisible;
+    if (timeAdjustDescription)
+      timeAdjustDescription.hidden = !settings.instructionsVisible;
     if (instructions) instructions.hidden = !settings.instructionsVisible;
   };
 
-  const settingsApi = (window as any).electronAPI as ElectronAPI | undefined;
+  const settingsApi = window.electronAPI;
   if (settingsApi) {
-    settingsApi.getUiSettings().then(applyVisibilitySettings).catch(() => {
-      applyVisibilitySettings({ advancedControlsVisible: false, instructionsVisible: false });
-    });
+    settingsApi
+      .getUiSettings()
+      .then(applyVisibilitySettings)
+      .catch(() => {
+        applyVisibilitySettings({
+          advancedControlsVisible: false,
+          instructionsVisible: false,
+        });
+      });
   }
 
-  advancedControlsToggle?.addEventListener('change', () => {
+  advancedControlsToggle?.addEventListener("change", () => {
     const enabled = advancedControlsToggle.checked;
     if (advancedControls) advancedControls.hidden = !enabled;
     settingsApi?.setUiSettings({ advancedControlsVisible: enabled });
   });
-  instructionsToggle?.addEventListener('change', () => {
+  instructionsToggle?.addEventListener("change", () => {
     const enabled = instructionsToggle.checked;
     if (instructions) instructions.hidden = !enabled;
     if (timeAdjustDescription) timeAdjustDescription.hidden = !enabled;
@@ -477,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Запрашиваем разрешение на уведомления при загрузке
-  if (Notification.permission === 'default') {
+  if (Notification.permission === "default") {
     Notification.requestPermission();
   }
 
@@ -486,52 +455,70 @@ document.addEventListener('DOMContentLoaded', () => {
   updateInputAdjustButtons();
 
   // Подключаем слушатели обновлений от main процесса
-  const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+  const electronAPI = window.electronAPI;
   if (electronAPI) {
     // Слушаем обновления таймера
-    const applyTimerState = (state: { seconds: number; isRunning: boolean; isPaused: boolean; durationSeconds: number }) => {
+    const applyTimerState = (state: {
+      seconds: number;
+      isRunning: boolean;
+      isPaused: boolean;
+      durationSeconds: number;
+    }) => {
       remainingSeconds = state.seconds;
       isRunning = state.isRunning;
       isPaused = state.isPaused;
       timerDurationSeconds = state.durationSeconds || timerDurationSeconds;
-      
+
       updateDisplay();
       updateTimeAdjustButtons();
-      
+
       // Обновляем UI кнопок
-      const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-      const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-      const pauseBtn = document.getElementById('pauseBtn') as HTMLButtonElement;
-      const input = document.getElementById('secondsInput') as HTMLInputElement;
-      const status = document.getElementById('status');
-      
+      const startBtn = document.getElementById("startBtn") as HTMLButtonElement;
+      const stopBtn = document.getElementById("stopBtn") as HTMLButtonElement;
+      const pauseBtn = document.getElementById("pauseBtn") as HTMLButtonElement;
+      const input = document.getElementById("secondsInput") as HTMLInputElement;
+      const status = document.getElementById("status");
+
       if (startBtn) startBtn.disabled = state.isRunning || state.isPaused;
       if (stopBtn) stopBtn.disabled = !state.isRunning && !state.isPaused;
       if (pauseBtn) {
         pauseBtn.disabled = !state.isRunning && !state.isPaused;
-        pauseBtn.textContent = state.isPaused ? 'Resume' : 'Pause';
+        pauseBtn.textContent = state.isPaused ? "Resume" : "Pause";
       }
       if (input) input.disabled = state.isRunning || state.isPaused;
       if (status) {
         setStatus(
-          state.isPaused ? 'Timer paused' : state.isRunning ? 'Timer started...' : timerDurationSeconds > 0 ? `Timer stopped (${formatDurationLabel(timerDurationSeconds)})` : 'Timer stopped',
-          state.isPaused ? 'paused' : state.isRunning ? 'running' : 'stopped'
+          state.isPaused
+            ? "Timer paused"
+            : state.isRunning
+              ? "Timer started..."
+              : timerDurationSeconds > 0
+                ? `Timer stopped (${formatDurationLabel(timerDurationSeconds)})`
+                : "Timer is not set",
+          state.isPaused ? "paused" : state.isRunning ? "running" : "stopped",
         );
       }
-      
+
       // Обновляем состояние кнопок изменения input (включая quick-links)
       updateInputAdjustButtons();
     };
     electronAPI.onTimerUpdate(applyTimerState);
     // Subscribe first, then fetch a snapshot so startup restoration cannot be missed.
-    electronAPI.getTimerState().then(applyTimerState).catch(() => {});
-    
+    electronAPI
+      .getTimerState()
+      .then(applyTimerState)
+      .catch(() => {});
+
     const handleTimerFinished = (durationSeconds: number) => {
-      if (Number.isFinite(durationSeconds) && durationSeconds > 0) timerDurationSeconds = durationSeconds;
+      if (Number.isFinite(durationSeconds) && durationSeconds > 0)
+        timerDurationSeconds = durationSeconds;
       stopTimer();
       showNotification(timerDurationSeconds);
       playAlarmSound();
-      setStatus(`Timer stopped (${formatDurationLabel(timerDurationSeconds)})`, 'stopped');
+      setStatus(
+        `Timer stopped (${formatDurationLabel(timerDurationSeconds)})`,
+        "stopped",
+      );
       sendTimerUpdate();
     };
     // Both a live completion and a missed completion on startup use the same UX.
@@ -540,19 +527,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Состояние окна отсчёта времени
     electronAPI.onCountdownWindowState((visible: boolean) => {
-      const btn = document.getElementById('countdownWindowBtn') as HTMLButtonElement;
+      const btn = document.getElementById(
+        "countdownWindowBtn",
+      ) as HTMLButtonElement;
       if (btn) {
-        btn.textContent = visible ? 'Hide countdown window' : 'Show countdown window';
+        btn.textContent = visible
+          ? "Hide countdown window"
+          : "Show countdown window";
       }
     });
   }
 
   // Обработка Enter в поле ввода
-  const input = document.getElementById('secondsInput') as HTMLInputElement;
+  const input = document.getElementById("secondsInput") as HTMLInputElement;
   if (input) {
-    input.addEventListener('keypress', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
+    input.addEventListener("keypress", (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        const startBtn = document.getElementById(
+          "startBtn",
+        ) as HTMLButtonElement;
         if (startBtn && !startBtn.disabled) {
           startTimer();
         }
@@ -561,93 +554,95 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Подключаем обработчики кнопок
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const dismissBtn = document.getElementById('dismissAlertBtn');
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const dismissBtn = document.getElementById("dismissAlertBtn");
 
   if (startBtn) {
-    startBtn.addEventListener('click', startTimer);
+    startBtn.addEventListener("click", startTimer);
   }
 
   if (stopBtn) {
-    stopBtn.addEventListener('click', stopTimer);
+    stopBtn.addEventListener("click", stopTimer);
   }
 
   if (pauseBtn) {
-    pauseBtn.addEventListener('click', pauseResumeTimer);
+    pauseBtn.addEventListener("click", pauseResumeTimer);
   }
 
   if (dismissBtn) {
-    dismissBtn.addEventListener('click', dismissNotification);
+    dismissBtn.addEventListener("click", dismissNotification);
   }
 
   // Обработчики кнопок изменения времени
   const adjustButtons = [
-    { id: 'adjustMinus1h', seconds: -3600 },
-    { id: 'adjustMinus10m', seconds: -600 },
-    { id: 'adjustMinus5m', seconds: -300 },
-    { id: 'adjustMinus1m', seconds: -60 },
-    { id: 'adjustPlus1m', seconds: 60 },
-    { id: 'adjustPlus5m', seconds: 300 },
-    { id: 'adjustPlus10m', seconds: 600 },
-    { id: 'adjustPlus1h', seconds: 3600 }
+    { id: "adjustMinus1h", seconds: -3600 },
+    { id: "adjustMinus10m", seconds: -600 },
+    { id: "adjustMinus5m", seconds: -300 },
+    { id: "adjustMinus1m", seconds: -60 },
+    { id: "adjustPlus1m", seconds: 60 },
+    { id: "adjustPlus5m", seconds: 300 },
+    { id: "adjustPlus10m", seconds: 600 },
+    { id: "adjustPlus1h", seconds: 3600 },
   ];
 
   adjustButtons.forEach(({ id, seconds }) => {
     const button = document.getElementById(id);
     if (button) {
-      button.addEventListener('click', () => adjustTime(seconds));
+      button.addEventListener("click", () => adjustTime(seconds));
     }
   });
 
   // Обработчики кнопок изменения времени в input
   const inputAdjustButtons = [
-    { id: 'inputAdjustMinus10m', seconds: -600 },
-    { id: 'inputAdjustMinus5m', seconds: -300 },
-    { id: 'inputAdjustMinus1m', seconds: -60 },
-    { id: 'inputAdjustPlus1m', seconds: 60 },
-    { id: 'inputAdjustPlus5m', seconds: 300 },
-    { id: 'inputAdjustPlus10m', seconds: 600 }
+    { id: "inputAdjustMinus10m", seconds: -600 },
+    { id: "inputAdjustMinus5m", seconds: -300 },
+    { id: "inputAdjustMinus1m", seconds: -60 },
+    { id: "inputAdjustPlus1m", seconds: 60 },
+    { id: "inputAdjustPlus5m", seconds: 300 },
+    { id: "inputAdjustPlus10m", seconds: 600 },
   ];
 
   inputAdjustButtons.forEach(({ id, seconds }) => {
     const button = document.getElementById(id);
     if (button) {
-      button.addEventListener('click', () => adjustInputTime(seconds));
+      button.addEventListener("click", () => adjustInputTime(seconds));
     }
   });
 
   // Обработчики быстрых ссылок
-  const quickLinks = document.querySelectorAll('.quick-link');
-  quickLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
+  const quickLinks = document.querySelectorAll(".quick-link");
+  quickLinks.forEach((link) => {
+    link.addEventListener("click", (e) => {
       e.preventDefault();
       // Не работаем если таймер запущен или на паузе
       if (isRunning || isPaused) {
         return;
       }
-      const timeValue = (link as HTMLElement).getAttribute('data-time');
+      const timeValue = (link as HTMLElement).getAttribute("data-time");
       if (timeValue) {
-        const input = document.getElementById('secondsInput') as HTMLInputElement;
+        const input = document.getElementById(
+          "secondsInput",
+        ) as HTMLInputElement;
         if (input) {
           input.value = timeValue;
         }
       }
     });
   });
-  
+
   // Обновляем состояние quick-links при инициализации
   updateQuickLinks();
 
   // Обработчики кнопок управления приложением
-  const minimizeBtn = document.getElementById('minimizeBtn');
-  const closeBtn = document.getElementById('closeBtn');
-  const countdownWindowBtn = document.getElementById('countdownWindowBtn');
+  const minimizeBtn = document.getElementById("minimizeBtn");
+  const closeBtn = document.getElementById("closeBtn");
+  const countdownWindowBtn = document.getElementById("countdownWindowBtn");
 
   if (minimizeBtn) {
-    minimizeBtn.addEventListener('click', () => {
-      const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+    minimizeBtn.addEventListener("click", () => {
+      const electronAPI = window.electronAPI;
       if (electronAPI) {
         electronAPI.minimizeWindow();
       }
@@ -655,10 +650,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      const confirmed = confirm('Are you sure you want to quit the app?');
+    closeBtn.addEventListener("click", () => {
+      const confirmed = confirm("Are you sure you want to quit the app?");
       if (confirmed) {
-        const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+        const electronAPI = window.electronAPI;
         if (electronAPI) {
           electronAPI.closeApp();
         }
@@ -667,14 +662,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (countdownWindowBtn) {
-    countdownWindowBtn.addEventListener('click', () => {
-      const api = (window as any).electronAPI as ElectronAPI | undefined;
+    countdownWindowBtn.addEventListener("click", () => {
+      const api = window.electronAPI;
       if (api) api.toggleCountdownWindow();
     });
   }
 });
 
 // Экспортируем функции для глобального доступа (на случай если нужно)
-(window as any).startTimer = startTimer;
-(window as any).stopTimer = stopTimer;
-
+window.startTimer = startTimer;
+window.stopTimer = stopTimer;
