@@ -153,12 +153,12 @@ function restoreSettings(): void {
 
 function formatTimeForCountdownWindow(seconds: number): string {
   if (seconds <= 0) return '—';
-  if (seconds < 60) return '< 1м';
+  if (seconds < 60) return '< 1m';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}ч`);
-  parts.push(`${minutes}м`);
+  if (hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
   return parts.join(' ');
 }
 
@@ -260,7 +260,7 @@ function sendCountdownWindowState(): void {
 function updateTrayMenu(): void {
   if (!tray) return;
   const isVisible = mainWindow?.isVisible() ?? false;
-  const toggleLabel = isVisible ? 'Свернуть в трей' : 'Показать';
+  const toggleLabel = isVisible ? 'Minimize to tray' : 'Show';
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -277,15 +277,15 @@ function updateTrayMenu(): void {
       },
     },
     {
-      label: 'Выход',
+      label: 'Quit',
       click: async () => {
         const result = await dialog.showMessageBox(mainWindow || null as any, {
           type: 'question',
-          buttons: ['Отмена', 'Закрыть'],
+          buttons: ['Cancel', 'Quit'],
           defaultId: 0,
           cancelId: 0,
-          title: 'Подтверждение',
-          message: 'Вы уверены, что хотите закрыть приложение?'
+          title: 'Confirm quit',
+          message: 'Are you sure you want to quit the app?'
         });
 
         if (result.response === 1) {
@@ -376,20 +376,20 @@ function updateTrayIcon(): void {
   if (timerState.isAlerting) {
     // Мигание: красная иконка
     icon = createTextIcon('!', isBlinking);
-    tooltipText = '⏰ Время истекло!';
+    tooltipText = '⏰ Time is up!';
   } else if (timerState.isPaused && timerState.seconds > 0) {
     // Таймер на паузе - показываем "p"
     icon = createTextIcon('p', false);
-    tooltipText = `Таймер на паузе: ${formatTimeForTooltip(timerState.seconds)}`;
+    tooltipText = `Timer paused: ${formatTimeForTooltip(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
     // Показываем оставшиеся секунды
     const text = formatTimeForTray(timerState.seconds);
     icon = createTextIcon(text, false);
-    tooltipText = `Таймер: ${formatTimeForTooltip(timerState.seconds)}`;
+    tooltipText = `Timer: ${formatTimeForTooltip(timerState.seconds)}`;
   } else {
     // Прочерк когда таймер не запущен
     icon = createTextIcon('—', false);
-    tooltipText = 'Таймер не запущен';
+    tooltipText = 'Timer is not running';
   }
   
   tray.setImage(icon);

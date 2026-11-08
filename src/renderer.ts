@@ -43,13 +43,13 @@ function formatTime(seconds: number): { main: string; secondary: string } {
   // Формируем строку с часами, минутами и секундами
   const parts: string[] = [];
   if (hours > 0) {
-    parts.push(`${hours}ч`);
+    parts.push(`${hours}h`);
   }
   if (minutes > 0) {
-    parts.push(`${minutes}м`);
+    parts.push(`${minutes}m`);
   }
   if (secs > 0 || parts.length === 0) {
-    parts.push(`${secs}с`);
+    parts.push(`${secs}s`);
   }
   
   const main = parts.join(' ');
@@ -246,7 +246,7 @@ function startTimer(): void {
   if (seconds === null || seconds < 1) {
     const status = document.getElementById('status');
     if (status) {
-      status.textContent = 'Введите корректное время! (например: 500, 1m, 1h, 1d)';
+      status.textContent = 'Enter a valid duration (for example: 500, 1m, 1h, 1d)';
     }
     return;
   }
@@ -260,7 +260,7 @@ function startTimer(): void {
   if (stopBtn) stopBtn.disabled = false;
   if (pauseBtn) pauseBtn.disabled = false;
   input.disabled = true;
-  if (status) status.textContent = 'Таймер запущен...';
+  if (status) status.textContent = 'Timer started...';
 
   // Отправляем команду в main процесс
   const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
@@ -304,8 +304,8 @@ function showNotification(): void {
   }
 
   if (Notification.permission === 'granted') {
-    notification = new Notification('⏰ Время истекло!', {
-      body: 'Таймер завершил отсчет.',
+    notification = new Notification('⏰ Time is up!', {
+      body: 'The timer has finished.',
       requireInteraction: true,
       tag: 'timer-alert'
     });
@@ -332,7 +332,7 @@ function showNotification(): void {
     updateDismissButton();
   } else {
     // Если уведомления не разрешены, показываем alert
-    alert('⏰ Время истекло!');
+    alert('⏰ Time is up!');
     stopAlarmSound();
     // Создаем фиктивное уведомление для показа кнопки
     notification = {} as Notification;
@@ -376,7 +376,7 @@ function playAlarmSound(): void {
       }
     }, 600);
   } catch (e) {
-    console.error('Ошибка воспроизведения звука:', e);
+    console.error('Error playing sound:', e);
   }
 }
 
@@ -411,7 +411,7 @@ function dismissNotification(): void {
   
   const status = document.getElementById('status');
   if (status) {
-    status.textContent = 'Уведомление отключено';
+    status.textContent = 'Alert dismissed';
   }
 }
 
@@ -449,12 +449,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (stopBtn) stopBtn.disabled = !state.isRunning && !state.isPaused;
       if (pauseBtn) {
         pauseBtn.disabled = !state.isRunning && !state.isPaused;
-        pauseBtn.textContent = state.isPaused ? 'Возобновить' : 'Пауза';
+        pauseBtn.textContent = state.isPaused ? 'Resume' : 'Pause';
       }
       if (input) input.disabled = state.isRunning || state.isPaused;
       if (status) {
-        status.textContent = state.isPaused ? 'Таймер на паузе' : 
-                           (state.isRunning ? 'Таймер запущен...' : 'Таймер остановлен');
+        status.textContent = state.isPaused ? 'Timer paused' : 
+                           (state.isRunning ? 'Timer started...' : 'Timer stopped');
       }
       
       // Обновляем состояние кнопок изменения input (включая quick-links)
@@ -473,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     electronAPI.onCountdownWindowState((visible: boolean) => {
       const btn = document.getElementById('countdownWindowBtn') as HTMLButtonElement;
       if (btn) {
-        btn.textContent = visible ? 'Скрыть окно отсчёта времени' : 'Показывать окно отсчёта времени';
+        btn.textContent = visible ? 'Hide countdown window' : 'Show countdown window';
       }
     });
   }
@@ -587,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
-      const confirmed = confirm('Вы уверены, что хотите закрыть приложение?');
+      const confirmed = confirm('Are you sure you want to quit the app?');
       if (confirmed) {
         const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
         if (electronAPI) {

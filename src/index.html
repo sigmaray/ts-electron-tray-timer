@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -246,13 +246,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>⏱️ Таймер</h1>
+        <h1>⏱️ Timer</h1>
         
         <div class="timer-section">
-            <div class="timer-display" id="timerDisplay"><div class="timer-display-main">0с</div><div class="timer-display-secondary">(00:00)</div></div>
+            <div class="timer-display" id="timerDisplay"><div class="timer-display-main">0s</div><div class="timer-display-secondary">(00:00)</div></div>
             <div class="timer-controls">
                 <div class="input-group">
-                    <label for="secondsInput">Время:</label>
+                    <label for="secondsInput">Time:</label>
                     <div class="input-with-buttons">
                         <button id="inputAdjustMinus10m" class="input-adjust-btn" disabled>-10m</button>
                         <button id="inputAdjustMinus5m" class="input-adjust-btn" disabled>-5m</button>
@@ -264,18 +264,18 @@
                     </div>
                 </div>
                 <div class="quick-links">
-                    <a href="#" class="quick-link" data-time="1m">1 минута</a>
-                    <a href="#" class="quick-link" data-time="5m">5 минут</a>
-                    <a href="#" class="quick-link" data-time="10m">10 минут</a>
-                    <a href="#" class="quick-link" data-time="20m">20 минут</a>
-                    <a href="#" class="quick-link" data-time="30m">30 минут</a>
-                    <a href="#" class="quick-link" data-time="1h">1 час</a>
+                    <a href="#" class="quick-link" data-time="1m">1 minute</a>
+                    <a href="#" class="quick-link" data-time="5m">5 minutes</a>
+                    <a href="#" class="quick-link" data-time="10m">10 minutes</a>
+                    <a href="#" class="quick-link" data-time="20m">20 minutes</a>
+                    <a href="#" class="quick-link" data-time="30m">30 minutes</a>
+                    <a href="#" class="quick-link" data-time="1h">1 hour</a>
                 </div>
-                <button id="startBtn">Запустить</button>
-                <button id="pauseBtn" disabled>Пауза</button>
-                <button id="stopBtn" disabled>Остановить</button>
+                <button id="startBtn">Start</button>
+                <button id="pauseBtn" disabled>Pause</button>
+                <button id="stopBtn" disabled>Stop</button>
                 <div class="time-adjust-buttons">
-                    <div class="time-adjust-buttons-label">Изменение времени уже запущенного таймера</div>
+                    <div class="time-adjust-buttons-label">Adjust the running timer</div>
                     <div class="time-adjust-buttons-container">
                         <button id="adjustMinus1h" class="time-adjust-btn" disabled>-1h</button>
                         <button id="adjustMinus10m" class="time-adjust-btn" disabled>-10m</button>
@@ -287,26 +287,26 @@
                         <button id="adjustPlus1h" class="time-adjust-btn" disabled>+1h</button>
                     </div>
                 </div>
-                <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Отключить уведомление</button>
+                <button id="dismissAlertBtn" class="dismiss-btn" style="display: none;">Dismiss alert</button>
                 <div class="app-controls">
-                    <button id="minimizeBtn">Свернуть в трей</button>
-                    <button id="countdownWindowBtn">Показывать окно отсчёта времени</button>
-                    <button id="closeBtn" class="close-btn">Закрыть</button>
+                    <button id="minimizeBtn">Minimize to tray</button>
+                    <button id="countdownWindowBtn">Show countdown window</button>
+                    <button id="closeBtn" class="close-btn">Close</button>
                 </div>
                 <div class="status" id="status"></div>
             </div>
         </div>
         
         <div class="info">
-            <p><strong>Инструкция:</strong></p>
-            <p>Введите время и нажмите "Запустить".</p>
-            <p>Форматы: "500" (секунды), "1m" (минута), "1h" (час), "1d" (день).</p>
-            <p>После истечения времени появится уведомление и звуковой сигнал.</p>
-            <p>Приложение можно свернуть в трей - таймер продолжит работать.</p>
+            <p><strong>Instructions:</strong></p>
+            <p>Enter a duration and click "Start".</p>
+            <p>Formats: "500" (seconds), "1m" (minute), "1h" (hour), "1d" (day).</p>
+            <p>When time is up, a notification and sound will alert you.</p>
+            <p>You can minimize the app to the system tray while the timer keeps running.</p>
         </div>
         
         <div class="time-adjust-description">
-            <p><strong>Изменение времени:</strong> Кнопки выше (-1h, -10m, -5m, -1m, +1m, +5m, +10m, +1h) позволяют быстро изменить оставшееся время таймера во время работы. Они активны только когда таймер запущен.</p>
+            <p><strong>Adjusting the timer:</strong> Use the buttons above (-1h, -10m, -5m, -1m, +1m, +5m, +10m, +1h) to quickly change the remaining time. They are enabled while the timer is running.</p>
         </div>
     </div>
 

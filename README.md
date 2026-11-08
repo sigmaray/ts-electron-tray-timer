@@ -1,91 +1,89 @@
 # Electron Tray Timer App (TypeScript)
 
-Таймер на TypeScript и Electron с иконкой в системном трее.
-
-Сгенерировано в Cursor. Код нужно выверить (не было времени это сделать), но вроде всё работает как надо.
+A timer built with TypeScript and Electron that lives in the system tray.
 
 ![Screenshot](README/screenshot.png)
 
-## Функциональность
+## Features
 
-- **Запуск свернутым в трей** - приложение автоматически запускается в свернутом состоянии, окно не открывается автоматически
-- Таймер с возможностью установки времени, запуска, паузы и остановки
-- Отображение оставшегося времени в иконке системного трея
-- Мигающая красная иконка с восклицательным знаком при завершении таймера
-- При закрытии окна приложение сворачивается в системный трей (не закрывается)
-- Иконка в трее с контекстным меню:
-  - "Показать" / "Свернуть в трей" - для управления видимостью окна
-  - "Выход" - для полного закрытия приложения (с подтверждением)
-- Клик по иконке в трее показывает/скрывает окно
-- Двойной клик по иконке в трее открывает окно
+- Starts minimized to the tray without opening a window
+- Set a duration, then start, pause, resume, or stop the timer
+- Shows the remaining time in the system tray icon
+- Flashes a red icon with an exclamation mark when the timer finishes
+- Closing the window minimizes the app to the tray
+- Tray context menu lets you show or minimize the window, or quit the app with confirmation
+- Click the tray icon to show or hide the window; double-click to open it
 
-## Как запустить
+## Download and run
 
-Открыть раздел "Releases" в гитхаб-репозитории. Открыть последний релиз. Скачать архив, соответсвующий используемой операционной системе, разархивировать, запустить.
+Open the repository's **Releases** page, choose the latest release, and download the archive for your operating system. Extract it and launch the app.
 
 ### Linux
 
-Скачать `electron-tray-timer-1.0.0.zip`, разархивировать, запустить (`ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer`)
+Download `electron-tray-timer-1.0.0.zip`, extract it, and run:
+
+```bash
+ELECTRON_DISABLE_SANDBOX=1 ./electron-tray-timer
+```
 
 ### Windows
 
-Скачать `Timer.Tray-1.0.0-win.zip`, разархивировать, запустить exe-файл ("Tray Timer.exe")
+Download and extract `Timer.Tray-1.0.0-win.zip`, then run `Tray Timer.exe`.
 
-Windows может ругнуться на запуск программы из непроверенного источника
+Windows may show a warning because the app is from an unrecognized publisher. You may also need to enable the tray's hidden icons.
 
-<img width="543" height="511" alt="image" src="https://github.com/user-attachments/assets/38307104-44eb-4c69-9c04-3b2c6dc8bd59" />
+<img width="543" height="511" alt="Windows security warning" src="https://github.com/user-attachments/assets/38307104-44eb-4c69-9c04-3b2c6dc8bd59" />
 
-<img width="550" height="513" alt="image" src="https://github.com/user-attachments/assets/8d45a49a-f903-4c33-9de8-415e459fd419" />
+<img width="550" height="513" alt="Windows launch dialog" src="https://github.com/user-attachments/assets/8d45a49a-f903-4c33-9de8-415e459fd419" />
 
-В Windows может быть необходимо включить скрытую иконку
+<img width="347" height="183" alt="Show hidden tray icons in Windows" src="https://github.com/user-attachments/assets/68d214cb-0987-4f60-9202-3e05355643dd" />
 
-<img width="347" height="183" alt="image" src="https://github.com/user-attachments/assets/68d214cb-0987-4f60-9202-3e05355643dd" />
+<img width="829" height="695" alt="Timer app on Windows" src="https://github.com/user-attachments/assets/3e213de5-9a2e-4799-8229-d8d264395622" />
 
-<img width="829" height="695" alt="image" src="https://github.com/user-attachments/assets/3e213de5-9a2e-4799-8229-d8d264395622" />
-
-<img width="740" height="54" alt="image" src="https://github.com/user-attachments/assets/572254bc-17c7-4ff3-bad5-bafb062f0caa" />
+<img width="740" height="54" alt="Timer in the system tray" src="https://github.com/user-attachments/assets/572254bc-17c7-4ff3-bad5-bafb062f0caa" />
 
 ### macOS
 
-Использовать архив `Timer.Tray-1.0.0-mac.zip`
+Download and use `Timer.Tray-1.0.0-mac.zip`.
 
-## Запуск через npm
+## Run from source
+
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-## Запуск
+Start the app:
 
 ```bash
 npm start
 ```
 
-## Разработка
-
-Для разработки с автоматической пересборкой:
+For development with automatic rebuilding:
 
 ```bash
 npm run dev
 ```
 
-## Решение проблем
+## Troubleshooting
 
-### Ошибка SUID sandbox на Linux
+### SUID sandbox error on Linux
 
-Если при запуске возникает ошибка с `chrome-sandbox`, есть два способа решения:
+If Electron reports an error involving `chrome-sandbox`, try either option:
 
-1. **Исправить права на файл** (требует sudo):
+1. Fix the file permissions (requires `sudo`):
+
    ```bash
    sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
    ```
 
-2. **Использовать флаг отключения sandbox** (уже настроено в скриптах):
-   Скрипты уже используют `ELECTRON_DISABLE_SANDBOX=1`, что решает проблему автоматически.
+2. Disable the sandbox. The project scripts already set `ELECTRON_DISABLE_SANDBOX=1`.
 
-## Структура проекта
+## Project structure
 
-- `src/main.ts` - главный процесс Electron
-- `src/index.html` - интерфейс приложения
-- `dist/` - скомпилированные файлы (создается автоматически)
+- `src/main.ts` — Electron main process
+- `src/index.html` — timer interface
+- `dist/` — compiled files (generated automatically)
 
+For the Russian README, see [README.ru.md](README.ru.md).
