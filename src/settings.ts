@@ -1,5 +1,6 @@
 import { MAX_TIMER_SECONDS } from "./time";
 
+/** Timer state persisted between application launches. */
 export type PersistedTimer =
   | {
       secondsLeft: number;
@@ -15,6 +16,7 @@ export type PersistedTimer =
       savedAt: number;
     };
 
+/** Versioned application preferences and optional in-progress timer state. */
 export type PersistedSettings = {
   version: 1;
   timer: PersistedTimer | null;
@@ -23,14 +25,23 @@ export type PersistedSettings = {
   instructionsVisible?: boolean;
 };
 
+/** Check whether an unknown JSON value is a non-null object record.
+ * @param value The value to inspect.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Validate a non-negative integer that can be represented exactly.
+ * @param value The value to validate.
+ */
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+/** Parse a persisted timer, returning undefined when its data is invalid.
+ * @param value Untrusted timer data from the settings file.
+ */
 function parseTimer(value: unknown): PersistedTimer | null | undefined {
   if (value === null) return null;
   if (
@@ -79,6 +90,9 @@ function parseTimer(value: unknown): PersistedTimer | null | undefined {
   return undefined;
 }
 
+/** Parse and validate serialized application settings.
+ * @param raw The raw JSON contents read from the settings file.
+ */
 export function parsePersistedSettings(raw: string): PersistedSettings | null {
   let value: unknown;
   try {

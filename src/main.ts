@@ -15,7 +15,9 @@ import {
   formatTimeForTray,
 } from "./icons";
 
+/** Test-only globals exposed to the Electron test process. */
 declare global {
+  /** Return the active system tray instance to an E2E test. */
   var __tray__: (() => Tray | null) | undefined;
 }
 
@@ -32,13 +34,16 @@ if (process.env.NODE_ENV === "test") {
 // Control whether the app allows only one running instance.
 const ALLOW_ONLY_ONE_INSTANCE = process.env.ALLOW_ONLY_ONE_INSTANCE !== "false";
 
-let timerState: {
+/** Values used to render the timer's system-tray icon and tooltip. */
+type TrayTimerState = {
   seconds: number;
   isRunning: boolean;
   isAlerting: boolean;
   isPaused?: boolean;
   durationSeconds?: number;
-} = {
+};
+
+let timerState: TrayTimerState = {
   seconds: 0,
   isRunning: false,
   isAlerting: false,
@@ -64,11 +69,13 @@ const SETTINGS_VERSION = 1 as const;
 const SETTINGS_FILE_NAME = "settings.json";
 let ownsInstanceLock = !ALLOW_ONLY_ONE_INSTANCE;
 
+/** Resolve the settings file path, honoring the test override when present. */
 function getSettingsPath(): string {
   if (process.env.TIMER_SETTINGS_PATH) return process.env.TIMER_SETTINGS_PATH;
   return path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
 }
 
+/** Read and validate persisted settings, returning null when unavailable. */
 function loadSettings(): PersistedSettings | null {
   try {
     return parsePersistedSettings(fs.readFileSync(getSettingsPath(), "utf8"));
@@ -77,6 +84,7 @@ function loadSettings(): PersistedSettings | null {
   }
 }
 
+/** Persist current UI preferences and active timer state. */
 function saveSettings(): void {
   if (isRestoringSettings) return;
 
@@ -123,6 +131,7 @@ function saveSettings(): void {
   }
 }
 
+/** Restore saved preferences and restart or pause the saved timer. */
 function restoreSettings(): void {
   const settings = loadSettings();
   if (!settings) return;
@@ -174,6 +183,9 @@ function restoreSettings(): void {
   }
 }
 
+/** Format the remaining duration for the floating countdown window.
+ * @param seconds Remaining timer duration in seconds.
+ */
 function formatTimeForCountdownWindow(seconds: number): string {
   if (seconds <= 0) return "—";
   if (seconds < 60) return "< 1m";
@@ -185,10 +197,14 @@ function formatTimeForCountdownWindow(seconds: number): string {
   return parts.join(" ");
 }
 
+/** Return the current countdown text for the floating window. */
 function getCountdownText(): string {
   return formatTimeForCountdownWindow(remainingSeconds);
 }
 
+/** Check whether an IPC message came from the main renderer window.
+ * @param sender WebContents that sent the IPC message.
+ */
 function isMainWindowSender(sender: Electron.WebContents): boolean {
   return (
     !!mainWindow &&
@@ -197,6 +213,9 @@ function isMainWindowSender(sender: Electron.WebContents): boolean {
   );
 }
 
+/** Check whether an IPC message came from the countdown window.
+ * @param sender WebContents that sent the IPC message.
+ */
 function isCountdownWindowSender(sender: Electron.WebContents): boolean {
   return (
     !!countdownWindow &&
@@ -205,6 +224,7 @@ function isCountdownWindowSender(sender: Electron.WebContents): boolean {
   );
 }
 
+/** Send the current remaining duration to the countdown window. */
 function updateCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     const text = getCountdownText();
@@ -212,6 +232,7 @@ function updateCountdownWindow(): void {
   }
 }
 
+/** Create and show the floating countdown window if needed. */
 function createCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     countdownWindow.show();
@@ -274,6 +295,7 @@ function createCountdownWindow(): void {
   });
 }
 
+/** Close the floating countdown window and persist its hidden state. */
 function destroyCountdownWindow(): void {
   if (countdownWindow) {
     countdownWindow.close();
@@ -283,6 +305,7 @@ function destroyCountdownWindow(): void {
   saveSettings();
 }
 
+/** Toggle the floating countdown window's visibility. */
 function toggleCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     destroyCountdownWindow();
@@ -292,6 +315,7 @@ function toggleCountdownWindow(): void {
   }
 }
 
+/** Notify the main renderer whether the countdown window exists. */
 function sendCountdownWindowState(): void {
   const visible = !!(countdownWindow && !countdownWindow.isDestroyed());
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -299,6 +323,7 @@ function sendCountdownWindowState(): void {
   }
 }
 
+/** Rebuild the tray menu to match the main window's visibility. */
 function updateTrayMenu(): void {
   if (!tray) return;
   const isVisible = mainWindow?.isVisible() ?? false;
@@ -344,6 +369,7 @@ function updateTrayMenu(): void {
   tray.setContextMenu(contextMenu);
 }
 
+/** Refresh the tray icon and tooltip from the current timer state. */
 function updateTrayIcon(): void {
   if (!tray) return;
 
@@ -373,6 +399,7 @@ function updateTrayIcon(): void {
   tray.setToolTip(tooltipText);
 }
 
+/** Start blinking the tray icon to indicate a timer alert. */
 function startBlinking(): void {
   if (blinkInterval) return;
 
@@ -383,6 +410,7 @@ function startBlinking(): void {
   }, 500); // Blink every 500 ms.
 }
 
+/** Stop tray-icon blinking and render the current non-alert state. */
 function stopBlinking(): void {
   if (blinkInterval) {
     clearInterval(blinkInterval);
@@ -392,6 +420,7 @@ function stopBlinking(): void {
   updateTrayIcon();
 }
 
+/** Broadcast timer state and refresh the tray and countdown displays. */
 function sendTimerUpdateToRenderer(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("timer-update", {
@@ -415,6 +444,9 @@ function sendTimerUpdateToRenderer(): void {
   updateCountdownWindow();
 }
 
+/** Start a timer for the requested duration.
+ * @param seconds Initial timer duration in seconds.
+ */
 function startTimer(seconds: number): void {
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -456,6 +488,7 @@ function startTimer(seconds: number): void {
   saveSettings();
 }
 
+/** Pause the active timer or resume it from its saved remaining duration. */
 function pauseResumeTimer(): void {
   if (!timerInterval) return;
 
@@ -471,6 +504,7 @@ function pauseResumeTimer(): void {
   saveSettings();
 }
 
+/** Stop the active timer and clear its remaining duration. */
 function stopTimer(): void {
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -486,6 +520,9 @@ function stopTimer(): void {
   saveSettings();
 }
 
+/** Adjust an active timer's remaining time.
+ * @param seconds Signed number of seconds to add or subtract.
+ */
 function adjustTimerTime(seconds: number): void {
   if (!timerInterval) return;
 
@@ -520,6 +557,7 @@ function adjustTimerTime(seconds: number): void {
   saveSettings();
 }
 
+/** Create the main application window and install its lifecycle handlers. */
 function createWindow(): void {
   const appIcon = createAppIcon();
 
@@ -587,6 +625,7 @@ function createWindow(): void {
   mainWindow.on("hide", updateTrayMenu);
 }
 
+/** Create the system tray icon and its click handlers. */
 function createTray(): void {
   // Start with a dash icon.
   tray = new Tray(createTextIcon("—", false));
@@ -615,6 +654,7 @@ function createTray(): void {
 }
 
 // Initialize the application.
+/** Create the app windows, restore state, and register IPC handlers. */
 function initializeApp(): void {
   createWindow();
   createTray();

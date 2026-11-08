@@ -1,3 +1,4 @@
+/** Maximum duration accepted for a timer, in seconds. */
 export const MAX_TIMER_SECONDS = 31_536_000;
 
 const UNIT_SECONDS: Record<string, number> = {
@@ -7,6 +8,9 @@ const UNIT_SECONDS: Record<string, number> = {
   d: 86_400,
 };
 
+/** Parse a complete duration expression, returning seconds or null when invalid.
+ * @param input The user-entered duration in seconds or unit form such as `2h 5m`.
+ */
 export function parseDurationInput(input: string): number | null {
   const value = input.trim();
   if (!value) return null;

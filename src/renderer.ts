@@ -8,6 +8,9 @@ let isPaused: boolean = false;
 let isRunning: boolean = false;
 let timerDurationSeconds = 0;
 
+/** Formats a duration as a compact, human-readable label.
+ * @param seconds The duration in seconds.
+ */
 function formatDurationLabel(seconds: number): string {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(safeSeconds / 3600);
@@ -20,6 +23,10 @@ function formatDurationLabel(seconds: number): string {
   return parts.join(" ");
 }
 
+/** Updates the visible status message and its visual state.
+ * @param message The status text to display.
+ * @param state The semantic state used to style the status.
+ */
 function setStatus(
   message: string,
   state: "running" | "paused" | "stopped" | "error" | "neutral",
@@ -30,6 +37,8 @@ function setStatus(
   status.dataset.state = state;
 }
 
+/** Sends the current renderer timer state to the main process.
+ */
 function sendTimerUpdate(): void {
   const electronAPI = window.electronAPI;
   if (electronAPI) {
@@ -42,6 +51,9 @@ function sendTimerUpdate(): void {
   }
 }
 
+/** Formats remaining seconds for the main timer display.
+ * @param seconds The remaining duration in seconds.
+ */
 function formatTime(seconds: number): { main: string; secondary: string } {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -66,6 +78,8 @@ function formatTime(seconds: number): { main: string; secondary: string } {
   return { main, secondary };
 }
 
+/** Renders the current remaining time in the timer display.
+ */
 function updateDisplay(): void {
   const display = document.getElementById("timerDisplay");
   if (display) {
@@ -74,6 +88,9 @@ function updateDisplay(): void {
   }
 }
 
+/** Requests a change to the active timer's remaining duration.
+ * @param seconds The signed number of seconds to add.
+ */
 function adjustTime(seconds: number): void {
   // These controls work only while a timer is active, including when paused.
   if (!isRunning && !isPaused) return;
@@ -84,6 +101,8 @@ function adjustTime(seconds: number): void {
   }
 }
 
+/** Synchronizes active-timer adjustment controls with timer state.
+ */
 function updateTimeAdjustButtons(): void {
   // Enable these controls only while a timer is active, including when paused.
   const isActive = isRunning || isPaused;
@@ -110,6 +129,9 @@ function updateTimeAdjustButtons(): void {
   updateInputAdjustButtons();
 }
 
+/** Changes the duration input while no timer is active.
+ * @param seconds The signed number of seconds to add.
+ */
 function adjustInputTime(seconds: number): void {
   // These controls work only while the timer is stopped.
   if (isRunning || isPaused) return;
@@ -138,6 +160,9 @@ function adjustInputTime(seconds: number): void {
   input.value = formatTimeInput(newSeconds);
 }
 
+/** Formats seconds into a concise duration input value.
+ * @param seconds The duration in seconds.
+ */
 function formatTimeInput(seconds: number): string {
   if (seconds <= 0) {
     return "1s"; // Minimum value.
@@ -163,6 +188,8 @@ function formatTimeInput(seconds: number): string {
   }
 }
 
+/** Synchronizes input adjustment controls with timer state.
+ */
 function updateInputAdjustButtons(): void {
   // Enable these buttons only while the timer is stopped.
   const isActive = !isRunning && !isPaused;
@@ -187,6 +214,8 @@ function updateInputAdjustButtons(): void {
   updateQuickLinks();
 }
 
+/** Enables or disables preset duration links based on timer state.
+ */
 function updateQuickLinks(): void {
   // Enable links only while the timer is stopped.
   const isActive = !isRunning && !isPaused;
@@ -206,6 +235,8 @@ function updateQuickLinks(): void {
   });
 }
 
+/** Validates the duration input and requests timer startup.
+ */
 function startTimer(): void {
   const input = document.getElementById("secondsInput") as HTMLInputElement;
   if (!input) return;
@@ -235,6 +266,8 @@ function startTimer(): void {
   }
 }
 
+/** Requests pausing or resuming the active timer.
+ */
 function pauseResumeTimer(): void {
   if (!isRunning && !isPaused) return;
 
@@ -244,6 +277,8 @@ function pauseResumeTimer(): void {
   }
 }
 
+/** Stops the timer and clears any active alert in the renderer.
+ */
 function stopTimer(): void {
   const electronAPI = window.electronAPI;
   if (electronAPI) {
@@ -263,6 +298,9 @@ function stopTimer(): void {
   sendTimerUpdate();
 }
 
+/** Shows the completion alert for the specified timer duration.
+ * @param durationSeconds The completed timer duration in seconds.
+ */
 function showNotification(durationSeconds: number): void {
   const durationLabel = formatDurationLabel(durationSeconds);
   const notificationBody = `The ${durationLabel} timer has finished.`;
@@ -314,6 +352,8 @@ function showNotification(durationSeconds: number): void {
   sendTimerUpdate();
 }
 
+/** Starts the repeating alarm tone while a completion alert is active.
+ */
 function playAlarmSound(): void {
   // Play an alarm tone using the Web Audio API.
   try {
@@ -356,6 +396,8 @@ function playAlarmSound(): void {
   }
 }
 
+/** Stops the repeating alarm and closes its audio context.
+ */
 function stopAlarmSound(): void {
   if (audioInterval) {
     clearInterval(audioInterval);
@@ -369,6 +411,8 @@ function stopAlarmSound(): void {
   }
 }
 
+/** Shows or hides the alert dismissal button.
+ */
 function updateDismissButton(): void {
   const dismissBtn = document.getElementById(
     "dismissAlertBtn",
@@ -378,6 +422,8 @@ function updateDismissButton(): void {
   }
 }
 
+/** Dismisses the completion alert and stops its alarm.
+ */
 function dismissNotification(): void {
   if (notification) {
     notification.close();

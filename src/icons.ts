@@ -1,6 +1,10 @@
 import { nativeImage, type NativeImage } from "electron";
 import { createCanvas } from "canvas";
 
+/** Draw a compact tray icon with a centered label.
+ * @param text Short label to render in the icon.
+ * @param isBlinking Whether to use the alert red background.
+ */
 export function createTextIcon(text: string, isBlinking = false): NativeImage {
   const size = 22;
   const canvas = createCanvas(size, size);
@@ -15,6 +19,9 @@ export function createTextIcon(text: string, isBlinking = false): NativeImage {
   return nativeImage.createFromBuffer(canvas.toBuffer("image/png"));
 }
 
+/** Format remaining seconds for the tray icon label.
+ * @param seconds Number of seconds remaining.
+ */
 export function formatTimeForTray(seconds: number): string {
   if (seconds <= 0) return "—";
   if (seconds < 60) return `${seconds}s`;
@@ -24,6 +31,9 @@ export function formatTimeForTray(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)}h`;
 }
 
+/** Format remaining seconds as a detailed tray tooltip.
+ * @param seconds Number of seconds remaining.
+ */
 export function formatTimeForTooltip(seconds: number): string {
   if (seconds <= 0) return "0s";
 
@@ -38,6 +48,7 @@ export function formatTimeForTooltip(seconds: number): string {
   return parts.join(" ");
 }
 
+/** Draw the application's clock icon. */
 export function createAppIcon(): NativeImage {
   const size = 256;
   const canvas = createCanvas(size, size);

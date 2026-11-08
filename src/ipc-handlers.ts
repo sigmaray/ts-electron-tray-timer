@@ -1,6 +1,7 @@
 import { app, ipcMain, type WebContents } from "electron";
 import { MAX_TIMER_SECONDS } from "./time";
 
+/** Renderer-facing snapshot of the current timer state. */
 export type TimerSnapshot = {
   seconds: number;
   durationSeconds: number;
@@ -8,11 +9,13 @@ export type TimerSnapshot = {
   isPaused: boolean;
 };
 
+/** Visibility preferences exposed to the main renderer window. */
 type UiSettings = {
   advancedControlsVisible: boolean;
   instructionsVisible: boolean;
 };
 
+/** Main-process operations required by the IPC registration layer. */
 type IpcDependencies = {
   isMainWindowSender(sender: WebContents): boolean;
   isCountdownWindowSender(sender: WebContents): boolean;
@@ -30,10 +33,16 @@ type IpcDependencies = {
   clickTray(): void;
 };
 
+/** Check whether an IPC payload is a non-null object record.
+ * @param value Untrusted IPC payload to inspect.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Register validated IPC handlers for the main and countdown windows.
+ * @param deps Main-process callbacks and sender authorization checks.
+ */
 export function registerIpcHandlers(deps: IpcDependencies): void {
   ipcMain.handle("ui-settings-get", (event) => {
     if (!deps.isMainWindowSender(event.sender))
