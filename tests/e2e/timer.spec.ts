@@ -109,10 +109,10 @@ test.describe("Timer Application", () => {
     await expect(window.locator("#status")).toHaveText("Timer is not set");
     await expect(window.locator("#advancedControlsToggle")).not.toBeChecked();
     await expect(window.locator("#instructionsToggle")).not.toBeChecked();
-    await expect(window.locator(".visibility-toggles")).toBeVisible();
+    await expect(window.locator(".timer-app__toggle-row")).toBeVisible();
     const sectionsInOrder = await window.evaluate(() => {
       const timer = document.querySelector(".timer-section")!;
-      const toggles = document.querySelector(".visibility-toggles")!;
+      const toggles = document.querySelector(".timer-app__toggle-row")!;
       const advanced = document.querySelector("#advancedControls")!;
       const instructions = document.querySelector("#instructions")!;
       const follows = (first: Element, second: Element) =>
@@ -263,7 +263,7 @@ test.describe("Timer Application", () => {
 
   test("должен использовать quick links для установки времени", async () => {
     // Quick links should be enabled while the timer is stopped.
-    const quickLink = window.locator('.quick-link[data-time="5m"]');
+    const quickLink = window.locator('.timer-app__quick-link[data-time="5m"]');
     await expect(quickLink).toBeVisible();
 
     // Click a quick link.
@@ -279,7 +279,7 @@ test.describe("Timer Application", () => {
     await window.click("#startBtn");
 
     // Quick links should look disabled (reduced opacity or no pointer events).
-    const quickLink = window.locator('.quick-link[data-time="5m"]');
+    const quickLink = window.locator('.timer-app__quick-link[data-time="5m"]');
     const pointerEvents = await quickLink.evaluate(
       (el) => globalThis.getComputedStyle(el).pointerEvents,
     );

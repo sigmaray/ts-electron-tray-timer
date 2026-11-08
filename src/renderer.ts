@@ -84,7 +84,7 @@ function updateDisplay(): void {
   const display = document.getElementById("timerDisplay");
   if (display) {
     const formatted = formatTime(remainingSeconds);
-    display.innerHTML = `<div class="timer-display-main">${formatted.main}</div><div class="timer-display-secondary">${formatted.secondary}</div>`;
+    display.innerHTML = `<span class="timer-app__display-value">${formatted.main}</span><span class="timer-app__display-clock">${formatted.secondary}</span>`;
   }
 }
 
@@ -220,7 +220,7 @@ function updateQuickLinks(): void {
   // Enable links only while the timer is stopped.
   const isActive = !isRunning && !isPaused;
 
-  const quickLinks = document.querySelectorAll(".quick-link");
+  const quickLinks = document.querySelectorAll(".timer-app__quick-link");
   quickLinks.forEach((link) => {
     const linkElement = link as HTMLElement;
     if (isActive) {
@@ -658,7 +658,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Quick-link handlers.
-  const quickLinks = document.querySelectorAll(".quick-link");
+  const quickLinks = document.querySelectorAll(".timer-app__quick-link");
   quickLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();

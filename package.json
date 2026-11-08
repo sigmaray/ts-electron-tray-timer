@@ -21,6 +21,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "bootstrap": "^5.3.8",
     "canvas": "^3.2.0"
   },
   "devDependencies": {
