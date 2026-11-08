@@ -99,14 +99,49 @@ function getSettingsPath(): string {
 
 /** Read and validate persisted settings, returning null when unavailable. */
 function loadSettings(): PersistedSettings | null {
-  try {
-    return parsePersistedSettings(fs.readFileSync(getSettingsPath(), "utf8"));
-  } catch {
+  let settingsPath = getSettingsPath();
+  const existedBeforeLoad = fs.existsSync(settingsPath);
+  console.info(
+    `[settings] path: ${settingsPath}; exists: ${existedBeforeLoad}`,
+  );
+
+  if (!existedBeforeLoad) {
+    console.info("[settings] File is missing; creating it with default settings.");
+    saveSettings();
+    settingsPath = getSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      console.info(`[settings] Created settings file: ${settingsPath}`);
+    } else {
+      console.error(`[settings] Could not create settings file: ${settingsPath}`);
+    }
     return null;
   }
+
+  try {
+    const settings = parsePersistedSettings(
+      fs.readFileSync(settingsPath, "utf8"),
+    );
+    if (settings) {
+      console.info(`[settings] Successfully loaded settings: ${settingsPath}`);
+      return settings;
+    }
+
+    console.error(
+      `[settings] File exists but contains invalid settings: ${settingsPath}`,
+    );
+  } catch (error) {
+    console.error(
+      `[settings] Failed to read settings file: ${settingsPath}`,
+      error,
+    );
+  }
+
+  return null;
 }
 
-/** Persist current UI preferences and active timer state. */
+/**
+ * Persist current UI preferences and active timer state.
+ */
 function saveSettings(): void {
   if (isRestoringSettings) return;
 
@@ -142,33 +177,55 @@ function saveSettings(): void {
     instructionsVisible,
   };
 
+  let settingsPath = getSettingsPath();
+  const existedBeforeSave = fs.existsSync(settingsPath);
+  console.info(
+    `[settings] path: ${settingsPath}; exists before save: ${existedBeforeSave}`,
+  );
+
   try {
-    fs.writeFileSync(
-      getSettingsPath(),
-      JSON.stringify(settings, null, 2),
-      "utf8",
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+    console.info(
+      `[settings] Successfully ${existedBeforeSave ? "updated" : "created"} settings file: ${settingsPath}`,
     );
-  } catch (err) {
+  } catch (error) {
     const userDataPath = path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
     const isPortablePath =
-      !process.env.TIMER_SETTINGS_PATH && getSettingsPath() !== userDataPath;
+      !process.env.TIMER_SETTINGS_PATH && settingsPath !== userDataPath;
 
     if (isPortablePath) {
+      console.warn(
+        `[settings] Could not write to portable path ${settingsPath}; falling back to ${userDataPath}`,
+        error,
+      );
+      settingsPathOverride = userDataPath;
+      settingsPath = userDataPath;
+      const fallbackExisted = fs.existsSync(settingsPath);
+      console.info(
+        `[settings] path: ${settingsPath}; exists before fallback save: ${fallbackExisted}`,
+      );
       try {
-        settingsPathOverride = userDataPath;
         fs.writeFileSync(
-          userDataPath,
+          settingsPath,
           JSON.stringify(settings, null, 2),
           "utf8",
         );
-        return;
+        console.info(
+          `[settings] Successfully ${fallbackExisted ? "updated" : "created"} settings file: ${settingsPath}`,
+        );
       } catch (fallbackError) {
-        console.error("Failed to save settings.json:", fallbackError);
-        return;
+        console.error(
+          `[settings] Failed to save settings file: ${settingsPath}`,
+          fallbackError,
+        );
       }
+      return;
     }
 
-    console.error("Failed to save settings.json:", err);
+    console.error(
+      `[settings] Failed to save settings file: ${settingsPath}`,
+      error,
+    );
   }
 }
 
