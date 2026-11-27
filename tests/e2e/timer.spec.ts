@@ -111,7 +111,7 @@ test.describe("Timer Application", () => {
     await expect(window.locator("#instructionsToggle")).not.toBeChecked();
     await expect(window.locator(".timer-app__toggle-row")).toBeVisible();
     const sectionsInOrder = await window.evaluate(() => {
-      const timer = document.querySelector(".timer-section")!;
+      const timer = document.querySelector(".timer-app__card")!;
       const toggles = document.querySelector(".timer-app__toggle-row")!;
       const advanced = document.querySelector("#advancedControls")!;
       const instructions = document.querySelector("#instructions")!;
