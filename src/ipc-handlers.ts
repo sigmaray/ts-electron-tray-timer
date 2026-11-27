@@ -16,6 +16,10 @@ type UiSettings = {
   notificationMode: "window" | "system" | "both";
   alarmSoundEnabled: boolean;
   alarmSound: "classic" | "digital" | "gentle";
+  countdownFormat: "compact" | "clock" | "seconds";
+  countdownFontSize: number;
+  countdownMenuButtonVisible: boolean;
+  countdownBackgroundColor: string;
 };
 
 /** Main-process operations required by the IPC registration layer. */
@@ -37,6 +41,8 @@ type IpcDependencies = {
   adjustTimerTime(seconds: number): void;
   toggleCountdownWindow(): void;
   closeCountdownWindow(): void;
+  showCountdownWindowMenu(): void;
+  resizeCountdownWindow(width: number, height: number): void;
   minimizeWindow(): void;
   clickTray(): void;
 };
@@ -97,6 +103,27 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
       value.alarmSound === "gentle"
     )
       settings.alarmSound = value.alarmSound;
+    if (
+      value.countdownFormat === "compact" ||
+      value.countdownFormat === "clock" ||
+      value.countdownFormat === "seconds"
+    )
+      settings.countdownFormat = value.countdownFormat;
+    if (
+      typeof value.countdownFontSize === "number" &&
+      Number.isInteger(value.countdownFontSize) &&
+      value.countdownFontSize >= 8 &&
+      value.countdownFontSize <= 32
+    )
+      settings.countdownFontSize = value.countdownFontSize;
+    if (typeof value.countdownMenuButtonVisible === "boolean")
+      settings.countdownMenuButtonVisible = value.countdownMenuButtonVisible;
+    if (
+      typeof value.countdownBackgroundColor === "string" &&
+      /^#[0-9a-fA-F]{6}$/.test(value.countdownBackgroundColor)
+    )
+      settings.countdownBackgroundColor =
+        value.countdownBackgroundColor.toLowerCase();
     if (Object.keys(settings).length) deps.setUiSettings(settings);
   });
 
@@ -164,6 +191,30 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
   ipcMain.on("countdown-window-close", (event) => {
     if (deps.isCountdownWindowSender(event.sender)) deps.closeCountdownWindow();
   });
+
+  ipcMain.on("countdown-window-menu", (event) => {
+    if (deps.isCountdownWindowSender(event.sender))
+      deps.showCountdownWindowMenu();
+  });
+
+  ipcMain.on(
+    "countdown-window-resize",
+    (event, width: unknown, height: unknown) => {
+      if (
+        !deps.isCountdownWindowSender(event.sender) ||
+        typeof width !== "number" ||
+        typeof height !== "number" ||
+        !Number.isInteger(width) ||
+        !Number.isInteger(height) ||
+        width < 100 ||
+        width > 800 ||
+        height < 30 ||
+        height > 200
+      )
+        return;
+      deps.resizeCountdownWindow(width, height);
+    },
+  );
 
   ipcMain.on("minimize-window", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.minimizeWindow();

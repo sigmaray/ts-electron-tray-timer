@@ -4,6 +4,10 @@ type AlertSettings = {
   notificationMode: "window" | "system" | "both";
   alarmSoundEnabled: boolean;
   alarmSound: "classic" | "digital" | "gentle";
+  countdownFormat: "compact" | "clock" | "seconds";
+  countdownFontSize: number;
+  countdownMenuButtonVisible: boolean;
+  countdownBackgroundColor: string;
 };
 
 let previewContext: AudioContext | null = null;
@@ -79,6 +83,10 @@ async function initializeSettingsWindow(): Promise<void> {
     notificationMode: "window" as const,
     alarmSoundEnabled: true,
     alarmSound: "classic" as const,
+    countdownFormat: "compact" as const,
+    countdownFontSize: 15,
+    countdownMenuButtonVisible: true,
+    countdownBackgroundColor: "#5b7fa6",
   }));
   const notificationMode = document.querySelector<HTMLInputElement>(
     `input[name="notificationMode"][value="${settings.notificationMode}"]`,
@@ -94,6 +102,27 @@ async function initializeSettingsWindow(): Promise<void> {
     "alarmSound",
   ) as HTMLSelectElement;
   soundSelect.value = settings.alarmSound;
+  const countdownFormat = document.getElementById(
+    "countdownFormat",
+  ) as HTMLSelectElement;
+  const countdownFontSize = document.getElementById(
+    "countdownFontSize",
+  ) as HTMLInputElement;
+  const countdownFontSizeValue = document.getElementById(
+    "countdownFontSizeValue",
+  );
+  const countdownMenuButtonVisible = document.getElementById(
+    "countdownMenuButtonVisible",
+  ) as HTMLInputElement;
+  const countdownBackgroundColor = document.getElementById(
+    "countdownBackgroundColor",
+  ) as HTMLInputElement;
+  countdownFormat.value = settings.countdownFormat;
+  countdownFontSize.value = String(settings.countdownFontSize);
+  if (countdownFontSizeValue)
+    countdownFontSizeValue.textContent = `${settings.countdownFontSize} pt`;
+  countdownMenuButtonVisible.checked = settings.countdownMenuButtonVisible;
+  countdownBackgroundColor.value = settings.countdownBackgroundColor;
 
   /** Saves a partial preference update and reflects its status in the window.
    * @param update The preference values changed by the user.
@@ -102,6 +131,10 @@ async function initializeSettingsWindow(): Promise<void> {
     notificationMode?: AlertSettings["notificationMode"];
     alarmSoundEnabled?: boolean;
     alarmSound?: AlertSettings["alarmSound"];
+    countdownFormat?: AlertSettings["countdownFormat"];
+    countdownFontSize?: number;
+    countdownMenuButtonVisible?: boolean;
+    countdownBackgroundColor?: string;
   }): void {
     api!.setUiSettings(update);
     if (status) status.textContent = "Settings are saved automatically.";
@@ -130,6 +163,27 @@ async function initializeSettingsWindow(): Promise<void> {
     });
   soundSelect.addEventListener("change", () => {
     save({ alarmSound: soundSelect.value as AlertSettings["alarmSound"] });
+  });
+  countdownFormat.addEventListener("change", () => {
+    save({
+      countdownFormat:
+        countdownFormat.value as AlertSettings["countdownFormat"],
+    });
+  });
+  countdownFontSize.addEventListener("input", () => {
+    if (countdownFontSizeValue)
+      countdownFontSizeValue.textContent = `${countdownFontSize.value} pt`;
+  });
+  countdownFontSize.addEventListener("change", () => {
+    save({ countdownFontSize: Number(countdownFontSize.value) });
+  });
+  countdownMenuButtonVisible.addEventListener("change", () => {
+    save({ countdownMenuButtonVisible: countdownMenuButtonVisible.checked });
+  });
+  countdownBackgroundColor.addEventListener("input", () => {
+    save({
+      countdownBackgroundColor: countdownBackgroundColor.value.toLowerCase(),
+    });
   });
   document.getElementById("soundTestBtn")?.addEventListener("click", () => {
     previewSound(soundSelect.value as AlertSettings["alarmSound"]);

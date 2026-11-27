@@ -4,92 +4,119 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Countdown</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
     <style>
       * {
-        margin: 0;
-        padding: 0;
         box-sizing: border-box;
       }
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: transparent;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        margin: 0;
         height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         overflow: hidden;
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
-      .countdown-box {
-        position: relative;
-        font-size: 20px;
-        font-weight: bold;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        background: rgba(102, 126, 234, 0.95);
-        padding: 14px 36px 14px 24px;
-        border-radius: 10px;
-        letter-spacing: 1px;
+      .countdown-widget {
+        width: max-content;
+        flex: 0 0 auto;
+        padding: 0.35em 0.5em;
+        gap: 0.65em;
+        background: var(--countdown-background-color, #5b7fa6) !important;
+        color: #fff;
+        font-size: var(--countdown-font-size, 15pt);
+        line-height: 1.2;
         user-select: none;
         -webkit-app-region: drag;
       }
       #countdown-display {
-        display: block;
+        flex: 0 0 auto;
+        white-space: nowrap;
       }
-      #countdown-close {
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        border: none;
-        border-radius: 4px;
-        background: rgba(0, 0, 0, 0.35);
-        color: #fff;
-        font-size: 16px;
-        font-weight: bold;
-        line-height: 1;
-        cursor: pointer;
-        -webkit-app-region: no-drag;
+      #countdown-menu {
         display: flex;
+        width: 1.25em;
+        height: 1.25em;
+        flex: 0 0 1.25em;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 0.12em;
+        padding: 0.08em;
+        border: 1px solid #fff;
+        color: #fff;
+        background: var(--countdown-background-color, #5b7fa6);
+        font-size: inherit;
+        -webkit-app-region: no-drag;
       }
-      #countdown-close:hover {
-        background: rgba(200, 80, 80, 0.9);
+      #countdown-menu[hidden] {
+        display: none !important;
+      }
+      .countdown-menu-line {
+        width: 0.55em;
+        height: max(1px, 0.06em);
+        border-radius: 2px;
+        background: currentColor;
       }
     </style>
   </head>
   <body>
-    <div class="countdown-box">
-      <span id="countdown-display">—</span>
-      <button type="button" id="countdown-close" title="Close">×</button>
+    <div
+      class="countdown-widget card shadow-sm border-0 d-flex flex-row align-items-center fw-bold"
+    >
+      <span id="countdown-display" class="font-monospace">—</span>
+      <button
+        type="button"
+        id="countdown-menu"
+        class="btn"
+        title="Countdown menu"
+        aria-label="Open countdown menu"
+      >
+        <span class="countdown-menu-line"></span>
+        <span class="countdown-menu-line"></span>
+        <span class="countdown-menu-line"></span>
+      </button>
     </div>
     <script>
-      (function () {
-        const el = document.getElementById("countdown-display");
-        if (
-          window.electronAPI &&
-          typeof window.electronAPI.onCountdownUpdate === "function"
-        ) {
-          window.electronAPI.onCountdownUpdate(function (text) {
-            if (el) el.textContent = text;
-          });
-        } else if (el) {
-          el.textContent = "—";
-        }
-        var closeBtn = document.getElementById("countdown-close");
-        if (
-          closeBtn &&
-          window.electronAPI &&
-          typeof window.electronAPI.closeCountdownWindow === "function"
-        ) {
-          closeBtn.addEventListener("click", function () {
-            window.electronAPI.closeCountdownWindow();
-          });
-        }
-      })();
+      const api = window.electronAPI;
+      const widget = document.querySelector(".countdown-widget");
+      const display = document.getElementById("countdown-display");
+      const menuButton = document.getElementById("countdown-menu");
+
+      if (widget && api?.resizeCountdownWindow) {
+        const resizeWindow = () => {
+          const bounds = widget.getBoundingClientRect();
+          api.resizeCountdownWindow(
+            Math.ceil(bounds.width),
+            Math.ceil(bounds.height),
+          );
+        };
+        new ResizeObserver(resizeWindow).observe(widget);
+        requestAnimationFrame(resizeWindow);
+      }
+
+      api?.onCountdownUpdate((text) => {
+        if (display) display.textContent = text;
+      });
+      api?.onCountdownMenuButtonVisibility((visible) => {
+        if (menuButton) menuButton.hidden = !visible;
+      });
+      api?.onCountdownFontSize((size) => {
+        if (widget && Number.isInteger(size) && size >= 8 && size <= 32)
+          widget.style.setProperty("--countdown-font-size", `${size}pt`);
+      });
+      api?.onCountdownBackgroundColor((color) => {
+        if (widget && /^#[0-9a-f]{6}$/i.test(color))
+          widget.style.setProperty("--countdown-background-color", color);
+      });
+      menuButton?.addEventListener("click", () =>
+        api?.showCountdownWindowMenu(),
+      );
     </script>
   </body>
 </html>

@@ -21,6 +21,10 @@ interface ElectronAPI {
     notificationMode: "window" | "system" | "both";
     alarmSoundEnabled: boolean;
     alarmSound: "classic" | "digital" | "gentle";
+    countdownFormat: "compact" | "clock" | "seconds";
+    countdownFontSize: number;
+    countdownMenuButtonVisible: boolean;
+    countdownBackgroundColor: string;
   }>;
   /** Saves visibility preferences for the main window.
    * @param settings The visibility preferences to update.
@@ -31,6 +35,10 @@ interface ElectronAPI {
     notificationMode?: "window" | "system" | "both";
     alarmSoundEnabled?: boolean;
     alarmSound?: "classic" | "digital" | "gentle";
+    countdownFormat?: "compact" | "clock" | "seconds";
+    countdownFontSize?: number;
+    countdownMenuButtonVisible?: boolean;
+    countdownBackgroundColor?: string;
   }): void;
   /** Opens the separate application settings window. */
   openSettingsWindow(): void;

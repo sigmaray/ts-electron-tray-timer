@@ -3,6 +3,7 @@ import * as path from "path";
 import * as fs from "fs";
 import {
   parsePersistedSettings,
+  type CountdownWindowPosition,
   type PersistedSettings,
   type PersistedTimer,
 } from "./settings";
@@ -23,6 +24,10 @@ declare global {
 
 let mainWindow: BrowserWindow | null = null;
 let countdownWindow: BrowserWindow | null = null;
+let countdownWindowPosition: CountdownWindowPosition | undefined;
+let countdownWindowWidth = 280;
+let countdownWindowHeight = 70;
+let countdownPositionSaveTimer: NodeJS.Timeout | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let alertWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -69,6 +74,10 @@ let instructionsVisible = false;
 let notificationMode: "window" | "system" | "both" = "window";
 let alarmSoundEnabled = true;
 let alarmSound: "classic" | "digital" | "gentle" = "classic";
+let countdownFormatPref: "compact" | "clock" | "seconds" = "compact";
+let countdownFontSizePref = 15;
+let countdownMenuButtonVisiblePref = true;
+let countdownBackgroundColorPref = "#5b7fa6";
 
 const SETTINGS_VERSION = 1 as const;
 const SETTINGS_FILE_NAME = "settings.json";
@@ -229,11 +238,16 @@ function saveSettings(): void {
     version: SETTINGS_VERSION,
     timer,
     countdownWindowVisible,
+    countdownWindowPosition,
     advancedControlsVisible,
     instructionsVisible,
     notificationMode,
     alarmSoundEnabled,
     alarmSound,
+    countdownFormat: countdownFormatPref,
+    countdownFontSize: countdownFontSizePref,
+    countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
+    countdownBackgroundColor: countdownBackgroundColorPref,
   };
 
   let settingsPath = getSettingsPath();
@@ -302,6 +316,11 @@ function restoreSettings(): void {
   notificationMode = settings.notificationMode ?? "window";
   alarmSoundEnabled = settings.alarmSoundEnabled ?? true;
   alarmSound = settings.alarmSound ?? "classic";
+  countdownFormatPref = settings.countdownFormat ?? "compact";
+  countdownFontSizePref = settings.countdownFontSize ?? 15;
+  countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible ?? true;
+  countdownBackgroundColorPref = settings.countdownBackgroundColor ?? "#5b7fa6";
+  countdownWindowPosition = settings.countdownWindowPosition;
 
   // Do not restore the alerting state on startup.
   timerState.isAlerting = false;
@@ -350,10 +369,18 @@ function restoreSettings(): void {
  * @param seconds Remaining timer duration in seconds.
  */
 function formatTimeForCountdownWindow(seconds: number): string {
-  if (seconds <= 0) return "—";
-  if (seconds < 60) return "< 1m";
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = Math.max(0, Math.floor(seconds));
+  if (countdownFormatPref === "seconds") return `${remaining}s`;
+  if (countdownFormatPref === "clock") {
+    const hours = Math.floor(remaining / 3600);
+    const minutes = Math.floor((remaining % 3600) / 60);
+    const secondsRemaining = remaining % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secondsRemaining).padStart(2, "0")}`;
+  }
+  if (remaining <= 0) return "—";
+  if (remaining < 60) return "< 1m";
+  const hours = Math.floor(remaining / 3600);
+  const minutes = Math.floor((remaining % 3600) / 60);
   const parts: string[] = [];
   if (hours > 0) parts.push(`${hours}h`);
   parts.push(`${minutes}m`);
@@ -508,7 +535,279 @@ function updateCountdownWindow(): void {
   if (countdownWindow && !countdownWindow.isDestroyed()) {
     const text = getCountdownText();
     countdownWindow.webContents.send("countdown-update", text);
+    sendCountdownWindowPreferences();
   }
+}
+
+/** Send countdown appearance settings to the floating window.
+ */
+function sendCountdownWindowPreferences(): void {
+  if (!countdownWindow || countdownWindow.isDestroyed()) return;
+  countdownWindow.webContents.send(
+    "countdown-menu-button-visibility",
+    countdownMenuButtonVisiblePref,
+  );
+  countdownWindow.webContents.send(
+    "countdown-font-size",
+    countdownFontSizePref,
+  );
+  countdownWindow.webContents.send(
+    "countdown-background-color",
+    countdownBackgroundColorPref,
+  );
+}
+
+/** Set the countdown time display format and refresh the window.
+ * @param format The selected format for remaining time.
+ */
+function setCountdownFormat(format: "compact" | "clock" | "seconds"): void {
+  countdownFormatPref = format;
+  saveSettings();
+  updateCountdownWindow();
+}
+
+/** Change whether the countdown window shows its menu button.
+ * @param visible Whether the menu button should be visible.
+ */
+function setCountdownMenuButtonVisible(visible: boolean): void {
+  countdownMenuButtonVisiblePref = visible;
+  saveSettings();
+  sendCountdownWindowPreferences();
+}
+
+/** Build the submenu for starting a timer with a preset duration.
+ */
+function buildNewInMenu(): Electron.MenuItemConstructorOptions {
+  return {
+    label: "New in",
+    submenu: [
+      { label: "5 seconds", click: () => startTimer(5) },
+      { label: "10 seconds", click: () => startTimer(10) },
+      { label: "30 seconds", click: () => startTimer(30) },
+      { label: "1 minute", click: () => startTimer(60) },
+      { label: "2 minutes", click: () => startTimer(120) },
+      { label: "5 minutes", click: () => startTimer(300) },
+      { label: "10 minutes", click: () => startTimer(600) },
+      { label: "30 minutes", click: () => startTimer(1800) },
+      { label: "1 hour", click: () => startTimer(3600) },
+      { type: "separator" },
+      {
+        label: "Custom…",
+        click: () => {
+          mainWindow?.show();
+          mainWindow?.focus();
+          updateTrayMenu();
+        },
+      },
+    ],
+  };
+}
+
+/** Show the native menu for countdown display and window controls.
+ */
+function showCountdownWindowMenu(): void {
+  if (!countdownWindow || countdownWindow.isDestroyed()) return;
+  const menu = Menu.buildFromTemplate([
+    buildNewInMenu(),
+    { type: "separator" },
+    { label: "Remaining time format", enabled: false },
+    {
+      label: "Compact (2m, 1m, < 1m)",
+      type: "radio",
+      checked: countdownFormatPref === "compact",
+      click: () => setCountdownFormat("compact"),
+    },
+    {
+      label: "Clock (00:01:51)",
+      type: "radio",
+      checked: countdownFormatPref === "clock",
+      click: () => setCountdownFormat("clock"),
+    },
+    {
+      label: "Total seconds (111s)",
+      type: "radio",
+      checked: countdownFormatPref === "seconds",
+      click: () => setCountdownFormat("seconds"),
+    },
+    { type: "separator" },
+    {
+      label: "Show menu button",
+      type: "checkbox",
+      checked: countdownMenuButtonVisiblePref,
+      click: (item) => setCountdownMenuButtonVisible(item.checked),
+    },
+    { type: "separator" },
+    {
+      label: "Show main window",
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+        updateTrayMenu();
+      },
+    },
+    { label: "Hide countdown window", click: destroyCountdownWindow },
+  ]);
+  menu.popup({ window: countdownWindow });
+}
+
+/** Resize the floating countdown window to match its rendered content.
+ * @param width Requested window width in screen-independent pixels.
+ * @param height Requested window height in screen-independent pixels.
+ */
+function resizeCountdownWindow(width: number, height: number): void {
+  if (!countdownWindow || countdownWindow.isDestroyed()) return;
+  if (
+    countdownWindow.getContentSize()[0] === width &&
+    countdownWindow.getContentSize()[1] === height
+  )
+    return;
+  countdownWindowWidth = width;
+  countdownWindowHeight = height;
+  countdownWindow.setContentSize(width, height);
+  rememberCountdownWindowPosition();
+  scheduleCountdownWindowPositionSave();
+}
+
+/** Build the default position at the lower-right of a display work area.
+ * @param display The display on which to position the countdown window.
+ */
+function defaultCountdownWindowPosition(
+  display: Electron.Display = screen.getPrimaryDisplay(),
+): CountdownWindowPosition {
+  const area = display.workArea;
+  const width = Math.min(countdownWindowWidth, area.width);
+  const height = Math.min(countdownWindowHeight, area.height);
+  return {
+    displayId: String(display.id),
+    displayLabel: display.label,
+    displayBounds: { ...display.bounds },
+    x: area.x + Math.max(0, area.width - width),
+    y: area.y + Math.max(0, area.height - height),
+    width,
+    height,
+  };
+}
+
+/** Check that a saved countdown window fits inside a display work area.
+ * @param position The saved countdown window bounds.
+ * @param display The display that should contain the window.
+ */
+function countdownPositionFits(
+  position: CountdownWindowPosition,
+  display: Electron.Display,
+): boolean {
+  const area = display.workArea;
+  return (
+    position.x >= area.x &&
+    position.y >= area.y &&
+    position.x + position.width <= area.x + area.width &&
+    position.y + position.height <= area.y + area.height
+  );
+}
+
+/** Resolve the saved monitor and return a usable countdown window position.
+ */
+function getRestoredCountdownWindowPosition(): CountdownWindowPosition {
+  const displays = screen.getAllDisplays();
+  const saved = countdownWindowPosition;
+  let display = saved
+    ? displays.find((item) => String(item.id) === saved.displayId)
+    : undefined;
+  if (!display && saved?.displayLabel) {
+    const matches = displays.filter(
+      (item) => item.label === saved.displayLabel,
+    );
+    if (matches.length === 1) display = matches[0];
+  }
+  if (!display && saved?.displayBounds) {
+    const bounds = saved.displayBounds;
+    const matches = displays.filter(
+      (item) =>
+        item.bounds.x === bounds.x &&
+        item.bounds.y === bounds.y &&
+        item.bounds.width === bounds.width &&
+        item.bounds.height === bounds.height,
+    );
+    if (matches.length === 1) display = matches[0];
+  }
+
+  if (
+    saved &&
+    display &&
+    countdownPositionFits({ ...saved, displayId: String(display.id) }, display)
+  ) {
+    countdownWindowWidth = saved.width;
+    countdownWindowHeight = saved.height;
+    return {
+      ...saved,
+      displayId: String(display.id),
+      displayLabel: display.label,
+      displayBounds: { ...display.bounds },
+    };
+  }
+  return defaultCountdownWindowPosition();
+}
+
+/** Update saved display metadata from the current native window bounds.
+ */
+function rememberCountdownWindowPosition(): void {
+  if (!countdownWindow || countdownWindow.isDestroyed()) return;
+  const bounds = countdownWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  countdownWindowPosition = {
+    displayId: String(display.id),
+    displayLabel: display.label,
+    displayBounds: { ...display.bounds },
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  };
+}
+
+/** Persist countdown window position after move/resize activity settles.
+ */
+function scheduleCountdownWindowPositionSave(): void {
+  if (countdownPositionSaveTimer) clearTimeout(countdownPositionSaveTimer);
+  countdownPositionSaveTimer = setTimeout(() => {
+    countdownPositionSaveTimer = null;
+    rememberCountdownWindowPosition();
+    saveSettings();
+  }, 250);
+}
+
+/** Persist the countdown window's latest position immediately.
+ */
+function saveCountdownWindowPositionNow(): void {
+  if (countdownPositionSaveTimer) clearTimeout(countdownPositionSaveTimer);
+  countdownPositionSaveTimer = null;
+  rememberCountdownWindowPosition();
+  saveSettings();
+}
+
+/** Move a countdown window back onto an available display after removal.
+ */
+function handleCountdownDisplayRemoved(): void {
+  if (!countdownWindow || countdownWindow.isDestroyed()) return;
+  const bounds = countdownWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  const current: CountdownWindowPosition = {
+    displayId: String(display.id),
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  };
+  if (!countdownPositionFits(current, display)) {
+    const fallback = defaultCountdownWindowPosition();
+    countdownWindow.setBounds({
+      x: fallback.x,
+      y: fallback.y,
+      width: fallback.width,
+      height: fallback.height,
+    });
+  }
+  saveCountdownWindowPositionNow();
 }
 
 /** Create and show the floating countdown window if needed. */
@@ -518,25 +817,21 @@ function createCountdownWindow(): void {
     countdownWindow.focus();
     countdownWindow.moveTop();
     updateCountdownWindow();
+    sendCountdownWindowPreferences();
     sendCountdownWindowState();
     return;
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } =
-    primaryDisplay.workAreaSize;
-  const { x: screenX, y: screenY } = primaryDisplay.workArea;
-
-  const windowWidth = 280;
-  const windowHeight = 70;
-  const x = screenX + screenWidth - windowWidth;
-  const y = screenY + screenHeight - windowHeight;
+  const restoredPosition = getRestoredCountdownWindowPosition();
+  countdownWindowPosition = restoredPosition;
+  countdownWindowWidth = restoredPosition.width;
+  countdownWindowHeight = restoredPosition.height;
 
   countdownWindow = new BrowserWindow({
-    width: windowWidth,
-    height: windowHeight,
-    x,
-    y,
+    width: restoredPosition.width,
+    height: restoredPosition.height,
+    x: restoredPosition.x,
+    y: restoredPosition.y,
     frame: false,
     alwaysOnTop: true,
     transparent: true,
@@ -552,11 +847,22 @@ function createCountdownWindow(): void {
 
   countdownWindow.loadFile(path.join(__dirname, "countdown.html"));
 
+  countdownWindow.on("move", scheduleCountdownWindowPositionSave);
+  countdownWindow.on("moved", scheduleCountdownWindowPositionSave);
+  countdownWindow.on("resize", scheduleCountdownWindowPositionSave);
+
   countdownWindow.once("ready-to-show", () => {
     if (countdownWindow) {
       updateCountdownWindow();
       countdownWindow.show();
+      countdownWindow.setBounds({
+        x: restoredPosition.x,
+        y: restoredPosition.y,
+        width: restoredPosition.width,
+        height: restoredPosition.height,
+      });
       countdownWindow.focus();
+      sendCountdownWindowPreferences();
       // On Linux, the window may appear behind other windows or without focus.
       countdownWindow.moveTop();
       if (process.platform === "linux") {
@@ -565,6 +871,7 @@ function createCountdownWindow(): void {
         });
       }
       sendCountdownWindowState();
+      setTimeout(saveCountdownWindowPositionNow, 150);
     }
   });
 
@@ -577,6 +884,7 @@ function createCountdownWindow(): void {
 /** Close the floating countdown window and persist its hidden state. */
 function destroyCountdownWindow(): void {
   if (countdownWindow) {
+    saveCountdownWindowPositionNow();
     countdownWindow.close();
     countdownWindow = null;
   }
@@ -600,28 +908,32 @@ function sendCountdownWindowState(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("countdown-window-state", visible);
   }
+  updateTrayMenu();
 }
 
 /** Rebuild the tray menu to match the main window's visibility. */
 function updateTrayMenu(): void {
   if (!tray) return;
-  const isVisible = mainWindow?.isVisible() ?? false;
-  const toggleLabel = isVisible ? "Minimize to tray" : "Show";
+  const isCountdownVisible = !!(
+    countdownWindow && !countdownWindow.isDestroyed()
+  );
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: toggleLabel,
+      label: "Show main window",
       click: () => {
-        if (!mainWindow) return;
-        if (mainWindow.isVisible()) {
-          mainWindow.hide();
-        } else {
-          mainWindow.show();
-          mainWindow.focus();
-        }
+        mainWindow?.show();
+        mainWindow?.focus();
         updateTrayMenu();
       },
     },
+    {
+      label: "Show countdown windows",
+      type: "checkbox",
+      checked: isCountdownVisible,
+      click: () => toggleCountdownWindow(),
+    },
+    { type: "separator" },
     {
       label: "Quit",
       click: async () => {
@@ -937,6 +1249,7 @@ function createTray(): void {
 function initializeApp(): void {
   createWindow();
   createTray();
+  screen.on("display-removed", handleCountdownDisplayRemoved);
 
   // Restore state from settings.json.
   // Restore after creating the window and tray so the timer can update both.
@@ -953,6 +1266,10 @@ function initializeApp(): void {
       notificationMode,
       alarmSoundEnabled,
       alarmSound,
+      countdownFormat: countdownFormatPref,
+      countdownFontSize: countdownFontSizePref,
+      countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
+      countdownBackgroundColor: countdownBackgroundColorPref,
     }),
     setUiSettings: (settings) => {
       if (typeof settings.advancedControlsVisible === "boolean")
@@ -964,6 +1281,15 @@ function initializeApp(): void {
       if (typeof settings.alarmSoundEnabled === "boolean")
         alarmSoundEnabled = settings.alarmSoundEnabled;
       if (settings.alarmSound) alarmSound = settings.alarmSound;
+      if (settings.countdownFormat)
+        countdownFormatPref = settings.countdownFormat;
+      if (typeof settings.countdownFontSize === "number")
+        countdownFontSizePref = settings.countdownFontSize;
+      if (typeof settings.countdownMenuButtonVisible === "boolean")
+        countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible;
+      if (settings.countdownBackgroundColor)
+        countdownBackgroundColorPref = settings.countdownBackgroundColor;
+      updateCountdownWindow();
       saveSettings();
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("alert-preferences-updated", {
@@ -994,6 +1320,8 @@ function initializeApp(): void {
     adjustTimerTime,
     toggleCountdownWindow,
     closeCountdownWindow: destroyCountdownWindow,
+    showCountdownWindowMenu,
+    resizeCountdownWindow,
     minimizeWindow: () => {
       mainWindow?.hide();
       updateTrayMenu();
@@ -1056,5 +1384,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (countdownWindow && !countdownWindow.isDestroyed())
+    saveCountdownWindowPositionNow();
   if (ownsInstanceLock) saveSettings();
 });

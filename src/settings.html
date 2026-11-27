@@ -65,6 +65,57 @@
         </div>
       </section>
       <section class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Countdown window</div>
+        <div class="card-body">
+          <label class="form-label" for="countdownFormat"
+            >Remaining time format</label
+          >
+          <select id="countdownFormat" class="form-select">
+            <option value="compact">Compact: 2m, 1m, &lt; 1m</option>
+            <option value="clock">Clock: 00:01:51</option>
+            <option value="seconds">Total seconds: 111s</option>
+          </select>
+          <label class="form-label mt-3" for="countdownFontSize"
+            >Font size</label
+          >
+          <div class="d-flex align-items-center gap-3">
+            <input
+              id="countdownFontSize"
+              class="form-range"
+              type="range"
+              min="8"
+              max="32"
+              step="1"
+            />
+            <output
+              id="countdownFontSizeValue"
+              for="countdownFontSize"
+              class="text-nowrap"
+              >15 pt</output
+            >
+          </div>
+          <div class="form-check mt-2">
+            <input
+              id="countdownMenuButtonVisible"
+              class="form-check-input"
+              type="checkbox"
+            />
+            <label class="form-check-label" for="countdownMenuButtonVisible"
+              >Show menu button</label
+            >
+          </div>
+          <label class="form-label mt-3" for="countdownBackgroundColor"
+            >Background color</label
+          >
+          <input
+            id="countdownBackgroundColor"
+            class="form-control form-control-color"
+            type="color"
+            title="Choose countdown window background"
+          />
+        </div>
+      </section>
+      <section class="card shadow-sm mb-3">
         <div class="card-body">
           <fieldset>
             <legend class="fs-6 fw-semibold">Alarm sound</legend>

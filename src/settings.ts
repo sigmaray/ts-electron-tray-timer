@@ -21,11 +21,37 @@ export type PersistedSettings = {
   version: 1;
   timer: PersistedTimer | null;
   countdownWindowVisible: boolean;
+  countdownWindowPosition?: CountdownWindowPosition;
   advancedControlsVisible?: boolean;
   instructionsVisible?: boolean;
   notificationMode?: "window" | "system" | "both";
   alarmSoundEnabled?: boolean;
   alarmSound?: "classic" | "digital" | "gentle";
+  countdownFormat?: "compact" | "clock" | "seconds";
+  countdownFontSize?: number;
+  countdownMenuButtonVisible?: boolean;
+  countdownBackgroundColor?: string;
+};
+
+/** Screen-space bounds of a display used to identify it after restart.
+ */
+export type CountdownDisplayBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** Saved screen position and size of the floating countdown window.
+ */
+export type CountdownWindowPosition = {
+  displayId: string;
+  displayLabel?: string;
+  displayBounds?: CountdownDisplayBounds;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 /** Check whether an unknown JSON value is a non-null object record.
@@ -40,6 +66,66 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Validate saved screen bounds before using them for display matching.
+ * @param value Untrusted display bounds from persisted settings.
+ */
+function parseDisplayBounds(
+  value: unknown,
+): CountdownDisplayBounds | undefined {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.x) ||
+    !Number.isSafeInteger(value.y) ||
+    !Number.isSafeInteger(value.width) ||
+    !Number.isSafeInteger(value.height) ||
+    Number(value.width) <= 0 ||
+    Number(value.height) <= 0
+  )
+    return undefined;
+  return {
+    x: Number(value.x),
+    y: Number(value.y),
+    width: Number(value.width),
+    height: Number(value.height),
+  };
+}
+
+/** Parse a saved countdown position, returning undefined when invalid.
+ * @param value Untrusted countdown window position from the settings file.
+ */
+function parseCountdownWindowPosition(
+  value: unknown,
+): CountdownWindowPosition | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.displayId !== "string" ||
+    value.displayId.length > 64 ||
+    !Number.isSafeInteger(value.x) ||
+    !Number.isSafeInteger(value.y) ||
+    !Number.isSafeInteger(value.width) ||
+    !Number.isSafeInteger(value.height) ||
+    Number(value.width) < 100 ||
+    Number(value.width) > 800 ||
+    Number(value.height) < 30 ||
+    Number(value.height) > 200
+  )
+    return undefined;
+  return {
+    displayId: value.displayId,
+    ...(typeof value.displayLabel === "string" &&
+    value.displayLabel.length <= 256
+      ? { displayLabel: value.displayLabel }
+      : {}),
+    ...(parseDisplayBounds(value.displayBounds)
+      ? { displayBounds: parseDisplayBounds(value.displayBounds) }
+      : {}),
+    x: Number(value.x),
+    y: Number(value.y),
+    width: Number(value.width),
+    height: Number(value.height),
+  };
 }
 
 /** Parse a persisted timer, returning undefined when its data is invalid.
@@ -139,13 +225,42 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
     value.alarmSound !== "gentle"
   )
     return null;
+  if (
+    value.countdownFormat !== undefined &&
+    value.countdownFormat !== "compact" &&
+    value.countdownFormat !== "clock" &&
+    value.countdownFormat !== "seconds"
+  )
+    return null;
+  if (
+    value.countdownFontSize !== undefined &&
+    (!Number.isInteger(value.countdownFontSize) ||
+      Number(value.countdownFontSize) < 8 ||
+      Number(value.countdownFontSize) > 32)
+  )
+    return null;
+  if (
+    value.countdownMenuButtonVisible !== undefined &&
+    typeof value.countdownMenuButtonVisible !== "boolean"
+  )
+    return null;
+  if (
+    value.countdownBackgroundColor !== undefined &&
+    (typeof value.countdownBackgroundColor !== "string" ||
+      !/^#[0-9a-fA-F]{6}$/.test(value.countdownBackgroundColor))
+  )
+    return null;
   const timer = parseTimer(value.timer);
   if (timer === undefined) return null;
+  const countdownWindowPosition = parseCountdownWindowPosition(
+    value.countdownWindowPosition,
+  );
 
   return {
     version: 1,
     timer,
     countdownWindowVisible: value.countdownWindowVisible,
+    ...(countdownWindowPosition ? { countdownWindowPosition } : {}),
     ...(typeof value.advancedControlsVisible === "boolean"
       ? { advancedControlsVisible: value.advancedControlsVisible }
       : {}),
@@ -164,6 +279,23 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
     value.alarmSound === "digital" ||
     value.alarmSound === "gentle"
       ? { alarmSound: value.alarmSound }
+      : {}),
+    ...(value.countdownFormat === "compact" ||
+    value.countdownFormat === "clock" ||
+    value.countdownFormat === "seconds"
+      ? { countdownFormat: value.countdownFormat }
+      : {}),
+    ...(typeof value.countdownFontSize === "number"
+      ? { countdownFontSize: value.countdownFontSize }
+      : {}),
+    ...(typeof value.countdownMenuButtonVisible === "boolean"
+      ? { countdownMenuButtonVisible: value.countdownMenuButtonVisible }
+      : {}),
+    ...(typeof value.countdownBackgroundColor === "string"
+      ? {
+          countdownBackgroundColor:
+            value.countdownBackgroundColor.toLowerCase(),
+        }
       : {}),
   };
 }

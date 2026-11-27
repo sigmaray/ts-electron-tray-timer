@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       notificationMode: "window" | "system" | "both";
       alarmSoundEnabled: boolean;
       alarmSound: "classic" | "digital" | "gentle";
+      countdownFormat: "compact" | "clock" | "seconds";
+      countdownFontSize: number;
+      countdownMenuButtonVisible: boolean;
+      countdownBackgroundColor: string;
     }>,
   /** Updates saved user interface visibility preferences.
    * @param settings The visibility preferences to update.
@@ -28,6 +32,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     notificationMode?: "window" | "system" | "both";
     alarmSoundEnabled?: boolean;
     alarmSound?: "classic" | "digital" | "gentle";
+    countdownFormat?: "compact" | "clock" | "seconds";
+    countdownFontSize?: number;
+    countdownMenuButtonVisible?: boolean;
+    countdownBackgroundColor?: string;
   }) => {
     ipcRenderer.send("ui-settings-set", settings);
   },
