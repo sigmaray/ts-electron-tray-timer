@@ -23,6 +23,8 @@ declare global {
 
 let mainWindow: BrowserWindow | null = null;
 let countdownWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
+let alertWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
@@ -64,11 +66,37 @@ let pendingStartupTimerFinished = false;
 
 let advancedControlsVisible = false;
 let instructionsVisible = false;
+let notificationMode: "window" | "system" | "both" = "window";
+let alarmSoundEnabled = true;
+let alarmSound: "classic" | "digital" | "gentle" = "classic";
 
 const SETTINGS_VERSION = 1 as const;
 const SETTINGS_FILE_NAME = "settings.json";
 let settingsPathOverride: string | null = null;
 let ownsInstanceLock = !ALLOW_ONLY_ONE_INSTANCE;
+
+/** Coordinates for a window centered on the primary display's work area. */
+type WindowPosition = { x: number; y: number };
+
+/** Calculate top-left coordinates that place a window on the primary display.
+ * @param width The window width in screen-independent pixels.
+ * @param height The window height in screen-independent pixels.
+ */
+function getPrimaryDisplayPosition(
+  width: number,
+  height: number,
+): WindowPosition {
+  const {
+    x: displayX,
+    y: displayY,
+    width: displayWidth,
+    height: displayHeight,
+  } = screen.getPrimaryDisplay().workArea;
+  return {
+    x: Math.max(displayX, displayX + Math.floor((displayWidth - width) / 2)),
+    y: Math.max(displayY, displayY + Math.floor((displayHeight - height) / 2)),
+  };
+}
 
 /** Resolve the settings path, preferring writable portable storage when enabled. */
 function getSettingsPath(): string {
@@ -76,31 +104,54 @@ function getSettingsPath(): string {
   if (settingsPathOverride) return settingsPathOverride;
 
   const userDataPath = path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
-  const portableMarkerPath = path.join(process.resourcesPath, "portable-mode");
-  if (!app.isPackaged || !fs.existsSync(portableMarkerPath))
-    return userDataPath;
+  const markerPath = [
+    path.join(process.resourcesPath, "portable-mode"),
+    path.join(app.getAppPath(), "portable-mode"),
+  ].find((candidate) => fs.existsSync(candidate));
+  if (!markerPath) return userDataPath;
 
+  const portableDirectory = path.dirname(markerPath);
   try {
-    fs.accessSync(process.resourcesPath, fs.constants.W_OK);
-    const portableSettingsPath = path.join(
-      process.resourcesPath,
-      SETTINGS_FILE_NAME,
-    );
-
-    // Preserve settings from an earlier non-portable installation on first launch.
-    if (!fs.existsSync(portableSettingsPath) && fs.existsSync(userDataPath)) {
-      fs.copyFileSync(userDataPath, portableSettingsPath);
-    }
-    return portableSettingsPath;
+    fs.accessSync(portableDirectory, fs.constants.W_OK);
+    return path.join(portableDirectory, SETTINGS_FILE_NAME);
   } catch {
-    // App bundles and AppImages may be read-only; keep settings in the OS location.
     return userDataPath;
+  }
+}
+
+/** Copy an older settings file into the selected storage location if needed.
+ * @param destination The active settings file path.
+ */
+function migrateLegacySettings(destination: string): void {
+  if (process.env.TIMER_SETTINGS_PATH || fs.existsSync(destination)) return;
+
+  const legacyPaths = [
+    path.join(app.getAppPath(), SETTINGS_FILE_NAME),
+    path.join(app.getAppPath(), "dist", SETTINGS_FILE_NAME),
+    path.join(app.getPath("userData"), SETTINGS_FILE_NAME),
+  ];
+  for (const legacyPath of legacyPaths) {
+    if (legacyPath === destination || !fs.existsSync(legacyPath)) continue;
+    try {
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(legacyPath, destination);
+      console.info(
+        `[settings] Migrated settings from ${legacyPath} to ${destination}`,
+      );
+      return;
+    } catch (error) {
+      console.warn(
+        `[settings] Could not migrate settings from ${legacyPath}`,
+        error,
+      );
+    }
   }
 }
 
 /** Read and validate persisted settings, returning null when unavailable. */
 function loadSettings(): PersistedSettings | null {
   let settingsPath = getSettingsPath();
+  migrateLegacySettings(settingsPath);
   const existedBeforeLoad = fs.existsSync(settingsPath);
   console.info(
     `[settings] path: ${settingsPath}; exists: ${existedBeforeLoad}`,
@@ -180,15 +231,20 @@ function saveSettings(): void {
     countdownWindowVisible,
     advancedControlsVisible,
     instructionsVisible,
+    notificationMode,
+    alarmSoundEnabled,
+    alarmSound,
   };
 
   let settingsPath = getSettingsPath();
+  migrateLegacySettings(settingsPath);
   const existedBeforeSave = fs.existsSync(settingsPath);
   console.info(
     `[settings] path: ${settingsPath}; exists before save: ${existedBeforeSave}`,
   );
 
   try {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
     console.info(
       `[settings] Successfully ${existedBeforeSave ? "updated" : "created"} settings file: ${settingsPath}`,
@@ -205,6 +261,7 @@ function saveSettings(): void {
       );
       settingsPathOverride = userDataPath;
       settingsPath = userDataPath;
+      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
       const fallbackExisted = fs.existsSync(settingsPath);
       console.info(
         `[settings] path: ${settingsPath}; exists before fallback save: ${fallbackExisted}`,
@@ -242,6 +299,9 @@ function restoreSettings(): void {
   isRestoringSettings = true;
   advancedControlsVisible = settings.advancedControlsVisible === true;
   instructionsVisible = settings.instructionsVisible === true;
+  notificationMode = settings.notificationMode ?? "window";
+  alarmSoundEnabled = settings.alarmSoundEnabled ?? true;
+  alarmSound = settings.alarmSound ?? "classic";
 
   // Do not restore the alerting state on startup.
   timerState.isAlerting = false;
@@ -314,6 +374,122 @@ function isMainWindowSender(sender: Electron.WebContents): boolean {
     !mainWindow.isDestroyed() &&
     sender.id === mainWindow.webContents.id
   );
+}
+
+/** Check whether an IPC message came from the settings window.
+ * @param sender WebContents that sent the IPC message.
+ */
+function isSettingsWindowSender(sender: Electron.WebContents): boolean {
+  return (
+    !!settingsWindow &&
+    !settingsWindow.isDestroyed() &&
+    sender.id === settingsWindow.webContents.id
+  );
+}
+
+/** Check whether an IPC message came from the timer completion window.
+ * @param sender WebContents that sent the IPC message.
+ */
+function isAlertWindowSender(sender: Electron.WebContents): boolean {
+  return (
+    !!alertWindow &&
+    !alertWindow.isDestroyed() &&
+    sender.id === alertWindow.webContents.id
+  );
+}
+
+/** Open or focus the separate application settings window.
+ */
+function openSettingsWindow(): void {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    const position = getPrimaryDisplayPosition(520, 600);
+    settingsWindow.setPosition(position.x, position.y);
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
+
+  const windowWidth = 520;
+  const windowHeight = 600;
+  const position = getPrimaryDisplayPosition(windowWidth, windowHeight);
+
+  settingsWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: position.x,
+    y: position.y,
+    minWidth: 460,
+    minHeight: 520,
+    title: "Timer Settings",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+  settingsWindow.loadFile(path.join(__dirname, "settings.html"));
+  settingsWindow.on("closed", () => {
+    settingsWindow = null;
+  });
+}
+
+/** Show or close the separate always-on-top timer completion window.
+ * @param mode The selected notification mode, or null to close the alert.
+ */
+function setAlertWindowMode(mode: "window" | "system" | "both" | null): void {
+  if (mode === null || mode === "system") {
+    closeAlertWindow(false);
+    return;
+  }
+  if (alertWindow && !alertWindow.isDestroyed()) {
+    const position = getPrimaryDisplayPosition(420, 330);
+    alertWindow.setPosition(position.x, position.y);
+    alertWindow.show();
+    alertWindow.focus();
+    alertWindow.moveTop();
+    return;
+  }
+
+  const windowWidth = 420;
+  const windowHeight = 330;
+  const position = getPrimaryDisplayPosition(windowWidth, windowHeight);
+
+  const createdAlertWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: position.x,
+    y: position.y,
+    minWidth: 360,
+    minHeight: 300,
+    title: "Timer finished",
+    alwaysOnTop: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+  alertWindow = createdAlertWindow;
+  createdAlertWindow.loadFile(path.join(__dirname, "alert.html"));
+  createdAlertWindow.on("closed", () => {
+    if (alertWindow !== createdAlertWindow) return;
+    alertWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed())
+      mainWindow.webContents.send("timer-alert-dismissed");
+  });
+}
+
+/** Dismiss the alert window and synchronize the main renderer alert state.
+ * @param notifyMain Whether to tell the main renderer that the user dismissed the alert.
+ */
+function closeAlertWindow(notifyMain: boolean): void {
+  const activeAlertWindow = alertWindow;
+  alertWindow = null;
+  if (activeAlertWindow && !activeAlertWindow.isDestroyed())
+    activeAlertWindow.close();
+  if (notifyMain && mainWindow && !mainWindow.isDestroyed())
+    mainWindow.webContents.send("timer-alert-dismissed");
 }
 
 /** Check whether an IPC message came from the countdown window.
@@ -768,15 +944,38 @@ function initializeApp(): void {
 
   registerIpcHandlers({
     isMainWindowSender,
+    isSettingsWindowSender,
+    isAlertWindowSender,
     isCountdownWindowSender,
-    getUiSettings: () => ({ advancedControlsVisible, instructionsVisible }),
+    getUiSettings: () => ({
+      advancedControlsVisible,
+      instructionsVisible,
+      notificationMode,
+      alarmSoundEnabled,
+      alarmSound,
+    }),
     setUiSettings: (settings) => {
       if (typeof settings.advancedControlsVisible === "boolean")
         advancedControlsVisible = settings.advancedControlsVisible;
       if (typeof settings.instructionsVisible === "boolean")
         instructionsVisible = settings.instructionsVisible;
+      if (settings.notificationMode)
+        notificationMode = settings.notificationMode;
+      if (typeof settings.alarmSoundEnabled === "boolean")
+        alarmSoundEnabled = settings.alarmSoundEnabled;
+      if (settings.alarmSound) alarmSound = settings.alarmSound;
       saveSettings();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("alert-preferences-updated", {
+          notificationMode,
+          alarmSoundEnabled,
+          alarmSound,
+        });
+      }
     },
+    setAlertWindowMode,
+    openSettingsWindow,
+    dismissAlertWindow: () => closeAlertWindow(true),
     getTimerState: () => ({
       seconds: remainingSeconds,
       durationSeconds: timerDurationSeconds,

@@ -23,6 +23,9 @@ export type PersistedSettings = {
   countdownWindowVisible: boolean;
   advancedControlsVisible?: boolean;
   instructionsVisible?: boolean;
+  notificationMode?: "window" | "system" | "both";
+  alarmSoundEnabled?: boolean;
+  alarmSound?: "classic" | "digital" | "gentle";
 };
 
 /** Check whether an unknown JSON value is a non-null object record.
@@ -117,6 +120,25 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
     typeof value.instructionsVisible !== "boolean"
   )
     return null;
+  if (
+    value.notificationMode !== undefined &&
+    value.notificationMode !== "window" &&
+    value.notificationMode !== "system" &&
+    value.notificationMode !== "both"
+  )
+    return null;
+  if (
+    value.alarmSoundEnabled !== undefined &&
+    typeof value.alarmSoundEnabled !== "boolean"
+  )
+    return null;
+  if (
+    value.alarmSound !== undefined &&
+    value.alarmSound !== "classic" &&
+    value.alarmSound !== "digital" &&
+    value.alarmSound !== "gentle"
+  )
+    return null;
   const timer = parseTimer(value.timer);
   if (timer === undefined) return null;
 
@@ -129,6 +151,19 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
       : {}),
     ...(typeof value.instructionsVisible === "boolean"
       ? { instructionsVisible: value.instructionsVisible }
+      : {}),
+    ...(value.notificationMode === "window" ||
+    value.notificationMode === "system" ||
+    value.notificationMode === "both"
+      ? { notificationMode: value.notificationMode }
+      : {}),
+    ...(typeof value.alarmSoundEnabled === "boolean"
+      ? { alarmSoundEnabled: value.alarmSoundEnabled }
+      : {}),
+    ...(value.alarmSound === "classic" ||
+    value.alarmSound === "digital" ||
+    value.alarmSound === "gentle"
+      ? { alarmSound: value.alarmSound }
       : {}),
   };
 }

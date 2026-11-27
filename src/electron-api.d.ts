@@ -18,6 +18,9 @@ interface ElectronAPI {
   getUiSettings(): Promise<{
     advancedControlsVisible: boolean;
     instructionsVisible: boolean;
+    notificationMode: "window" | "system" | "both";
+    alarmSoundEnabled: boolean;
+    alarmSound: "classic" | "digital" | "gentle";
   }>;
   /** Saves visibility preferences for the main window.
    * @param settings The visibility preferences to update.
@@ -25,7 +28,32 @@ interface ElectronAPI {
   setUiSettings(settings: {
     advancedControlsVisible?: boolean;
     instructionsVisible?: boolean;
+    notificationMode?: "window" | "system" | "both";
+    alarmSoundEnabled?: boolean;
+    alarmSound?: "classic" | "digital" | "gentle";
   }): void;
+  /** Opens the separate application settings window. */
+  openSettingsWindow(): void;
+  /** Sets or clears the always-on-top completion window.
+   * @param mode The selected alert mode, or null when dismissing the alert.
+   */
+  setAlertWindowMode(mode: "window" | "system" | "both" | null): void;
+  /** Requests dismissal of the timer completion window. */
+  dismissTimerAlert(): void;
+  /** Subscribes to dismissal from the separate timer completion window.
+   * @param callback The handler invoked when the alert window is dismissed.
+   */
+  onTimerAlertDismissed(callback: () => void): void;
+  /** Subscribes to completion preference updates from the settings window.
+   * @param callback The handler invoked with the new alert preferences.
+   */
+  onAlertPreferencesUpdated(
+    callback: (settings: {
+      notificationMode: "window" | "system" | "both";
+      alarmSoundEnabled: boolean;
+      alarmSound: "classic" | "digital" | "gentle";
+    }) => void,
+  ): void;
   /** Reports renderer-side alert and timer state to the main process.
    * @param state The current timer state and alert flags.
    */

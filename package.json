@@ -7,7 +7,7 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
     "devm": "npm run build && cross-env ALLOW_ONLY_ONE_INSTANCE=false electron .",
-    "build": "tsc && tsc --project tsconfig.renderer.json && cp src/index.html src/countdown.html dist/",
+    "build": "tsc && tsc --project tsconfig.renderer.json && cp src/index.html src/countdown.html src/settings.html src/alert.html dist/",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.tests.json && tsc --project tsconfig.renderer.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write package.json tsconfig.json tsconfig.tests.json tsconfig.renderer.json playwright.config.ts eslint.config.mjs src tests",

@@ -13,14 +13,22 @@ export type TimerSnapshot = {
 type UiSettings = {
   advancedControlsVisible: boolean;
   instructionsVisible: boolean;
+  notificationMode: "window" | "system" | "both";
+  alarmSoundEnabled: boolean;
+  alarmSound: "classic" | "digital" | "gentle";
 };
 
 /** Main-process operations required by the IPC registration layer. */
 type IpcDependencies = {
   isMainWindowSender(sender: WebContents): boolean;
+  isSettingsWindowSender(sender: WebContents): boolean;
+  isAlertWindowSender(sender: WebContents): boolean;
   isCountdownWindowSender(sender: WebContents): boolean;
   getUiSettings(): UiSettings;
   setUiSettings(settings: Partial<UiSettings>): void;
+  setAlertWindowMode(mode: "window" | "system" | "both" | null): void;
+  openSettingsWindow(): void;
+  dismissAlertWindow(): void;
   getTimerState(): TimerSnapshot;
   setAlerting(alerting: boolean): void;
   startTimer(seconds: number): void;
@@ -45,9 +53,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function registerIpcHandlers(deps: IpcDependencies): void {
   ipcMain.handle("ui-settings-get", (event) => {
-    if (!deps.isMainWindowSender(event.sender))
+    if (
+      !deps.isMainWindowSender(event.sender) &&
+      !deps.isSettingsWindowSender(event.sender)
+    )
       throw new Error("Unauthorized IPC sender");
     return deps.getUiSettings();
+  });
+
+  ipcMain.on("settings-window-open", (event) => {
+    if (deps.isMainWindowSender(event.sender)) deps.openSettingsWindow();
   });
 
   ipcMain.handle("timer-state-get", (event) => {
@@ -57,13 +72,48 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
   });
 
   ipcMain.on("ui-settings-set", (event, value: unknown) => {
-    if (!deps.isMainWindowSender(event.sender) || !isRecord(value)) return;
+    if (
+      (!deps.isMainWindowSender(event.sender) &&
+        !deps.isSettingsWindowSender(event.sender)) ||
+      !isRecord(value)
+    )
+      return;
     const settings: Partial<UiSettings> = {};
     if (typeof value.advancedControlsVisible === "boolean")
       settings.advancedControlsVisible = value.advancedControlsVisible;
     if (typeof value.instructionsVisible === "boolean")
       settings.instructionsVisible = value.instructionsVisible;
+    if (
+      value.notificationMode === "window" ||
+      value.notificationMode === "system" ||
+      value.notificationMode === "both"
+    )
+      settings.notificationMode = value.notificationMode;
+    if (typeof value.alarmSoundEnabled === "boolean")
+      settings.alarmSoundEnabled = value.alarmSoundEnabled;
+    if (
+      value.alarmSound === "classic" ||
+      value.alarmSound === "digital" ||
+      value.alarmSound === "gentle"
+    )
+      settings.alarmSound = value.alarmSound;
     if (Object.keys(settings).length) deps.setUiSettings(settings);
+  });
+
+  ipcMain.on("timer-alert-window", (event, value: unknown) => {
+    if (
+      !deps.isMainWindowSender(event.sender) ||
+      (value !== null &&
+        value !== "window" &&
+        value !== "system" &&
+        value !== "both")
+    )
+      return;
+    deps.setAlertWindowMode(value);
+  });
+
+  ipcMain.on("timer-alert-dismiss", (event) => {
+    if (deps.isAlertWindowSender(event.sender)) deps.dismissAlertWindow();
   });
 
   ipcMain.on("timer-state-update", (event, value: unknown) => {

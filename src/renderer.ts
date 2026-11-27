@@ -4,9 +4,24 @@ let remainingSeconds: number = 0;
 let audioContext: AudioContext | null = null;
 let audioInterval: NodeJS.Timeout | null = null;
 let notification: Notification | null = null;
+let alertActive = false;
 let isPaused: boolean = false;
 let isRunning: boolean = false;
 let timerDurationSeconds = 0;
+
+/** Preferences that control timer completion alerts and their sound.
+ */
+type AlertPreferences = {
+  notificationMode: "window" | "system" | "both";
+  alarmSoundEnabled: boolean;
+  alarmSound: "classic" | "digital" | "gentle";
+};
+
+let alertPreferences: AlertPreferences = {
+  notificationMode: "window",
+  alarmSoundEnabled: true,
+  alarmSound: "classic",
+};
 
 /** Formats a duration as a compact, human-readable label.
  * @param seconds The duration in seconds.
@@ -45,7 +60,7 @@ function sendTimerUpdate(): void {
     electronAPI.updateTimerState({
       seconds: remainingSeconds,
       isRunning: isRunning,
-      isAlerting: notification !== null,
+      isAlerting: alertActive,
       isPaused: isPaused,
     });
   }
@@ -289,6 +304,7 @@ function stopTimer(): void {
 
   // Stop the alarm sound if it is playing.
   stopAlarmSound();
+  alertActive = false;
   // Close the notification if one is active.
   if (notification) {
     notification.close();
@@ -304,12 +320,18 @@ function stopTimer(): void {
 function showNotification(durationSeconds: number): void {
   const durationLabel = formatDurationLabel(durationSeconds);
   const notificationBody = `The ${durationLabel} timer has finished.`;
+  const wantsSystemNotification =
+    alertPreferences.notificationMode !== "window";
+  const wantsAppWindow = alertPreferences.notificationMode !== "system";
+  alertActive = true;
+  window.electronAPI?.setAlertWindowMode(alertPreferences.notificationMode);
+
   // Request permission to show notifications.
-  if (Notification.permission === "default") {
+  if (wantsSystemNotification && Notification.permission === "default") {
     void Notification.requestPermission().catch(() => {});
   }
 
-  if (Notification.permission === "granted") {
+  if (wantsSystemNotification && Notification.permission === "granted") {
     try {
       notification = new Notification("⏰ Time is up!", {
         body: notificationBody,
@@ -321,17 +343,16 @@ function showNotification(durationSeconds: number): void {
       notification.onclose = () => {
         stopAlarmSound();
         notification = null;
+        alertActive = false;
+        window.electronAPI?.setAlertWindowMode(null);
         updateDismissButton();
         sendTimerUpdate();
       };
 
       // Stop the alarm when the notification is clicked.
       notification.onclick = () => {
-        stopAlarmSound();
         if (window.focus) window.focus();
-        notification?.close();
-        updateDismissButton();
-        sendTimerUpdate();
+        dismissNotification();
       };
 
       updateDismissButton();
@@ -343,23 +364,24 @@ function showNotification(durationSeconds: number): void {
     }
   }
 
-  // Show an alert if notifications are unavailable.
-  alert(`⏰ The ${durationLabel} timer has finished!`);
-  stopAlarmSound();
-  // Use a placeholder notification to show the dismiss button.
-  notification = {} as Notification;
+  // Fall back to an app window if system notifications are unavailable.
+  if (wantsSystemNotification && !wantsAppWindow)
+    window.electronAPI?.setAlertWindowMode("window");
   updateDismissButton();
   sendTimerUpdate();
 }
 
 /** Starts the repeating alarm tone while a completion alert is active.
+ * @param sound The selected alarm tone pattern.
  */
-function playAlarmSound(): void {
+function playAlarmSound(sound: AlertPreferences["alarmSound"]): void {
   // Play an alarm tone using the Web Audio API.
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioContext = new AudioContextClass();
 
+    /** Plays one beep using the current alarm tone.
+     */
     function playBeep(): void {
       if (!audioContext) return;
 
@@ -369,28 +391,48 @@ function playAlarmSound(): void {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.value = 800; // Frequency in hertz.
-      oscillator.type = "sine";
+      const tone = {
+        classic: {
+          frequency: 800,
+          type: "sine" as OscillatorType,
+          duration: 0.5,
+          repeat: 600,
+        },
+        digital: {
+          frequency: 1100,
+          type: "square" as OscillatorType,
+          duration: 0.18,
+          repeat: 360,
+        },
+        gentle: {
+          frequency: 520,
+          type: "sine" as OscillatorType,
+          duration: 0.8,
+          repeat: 1100,
+        },
+      }[sound];
+      oscillator.frequency.value = tone.frequency;
+      oscillator.type = tone.type;
 
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(
         0.01,
-        audioContext.currentTime + 0.5,
+        audioContext.currentTime + tone.duration,
       );
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
+      oscillator.stop(audioContext.currentTime + tone.duration);
     }
 
     // Play a tone every 0.6 seconds.
     playBeep();
     audioInterval = setInterval(() => {
-      if (audioContext && notification) {
+      if (audioContext && alertActive) {
         playBeep();
       } else {
         stopAlarmSound();
       }
-    }, 600);
+    }, { classic: 600, digital: 360, gentle: 1100 }[sound]);
   } catch (e) {
     console.error("Error playing sound:", e);
   }
@@ -417,9 +459,11 @@ function updateDismissButton(): void {
   const dismissBtn = document.getElementById(
     "dismissAlertBtn",
   ) as HTMLButtonElement;
-  if (dismissBtn) {
-    dismissBtn.style.display = notification !== null ? "block" : "none";
-  }
+  if (dismissBtn)
+    dismissBtn.style.display =
+      alertActive && alertPreferences.notificationMode === "system"
+        ? "block"
+        : "none";
 }
 
 /** Dismisses the completion alert and stops its alarm.
@@ -429,6 +473,8 @@ function dismissNotification(): void {
     notification.close();
     notification = null;
   }
+  alertActive = false;
+  window.electronAPI?.setAlertWindowMode(null);
   stopAlarmSound();
   updateDismissButton();
   sendTimerUpdate();
@@ -454,6 +500,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const applyVisibilitySettings = (settings: {
     advancedControlsVisible: boolean;
     instructionsVisible: boolean;
+    notificationMode: AlertPreferences["notificationMode"];
+    alarmSoundEnabled: boolean;
+    alarmSound: AlertPreferences["alarmSound"];
   }) => {
     if (advancedControlsToggle)
       advancedControlsToggle.checked = settings.advancedControlsVisible;
@@ -464,6 +513,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (timeAdjustDescription)
       timeAdjustDescription.hidden = !settings.instructionsVisible;
     if (instructions) instructions.hidden = !settings.instructionsVisible;
+    alertPreferences = {
+      notificationMode: settings.notificationMode,
+      alarmSoundEnabled: settings.alarmSoundEnabled,
+      alarmSound: settings.alarmSound,
+    };
   };
 
   const settingsApi = window.electronAPI;
@@ -475,6 +529,9 @@ document.addEventListener("DOMContentLoaded", () => {
         applyVisibilitySettings({
           advancedControlsVisible: false,
           instructionsVisible: false,
+          notificationMode: "window",
+          alarmSoundEnabled: true,
+          alarmSound: "classic",
         });
       });
   }
@@ -491,10 +548,9 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsApi?.setUiSettings({ instructionsVisible: enabled });
   });
 
-  // Request notification permission when the page loads.
-  if (Notification.permission === "default") {
-    Notification.requestPermission();
-  }
+  document.getElementById("settingsBtn")?.addEventListener("click", () => {
+    settingsApi?.openSettingsWindow();
+  });
 
   // Initialize the time-adjustment buttons.
   updateTimeAdjustButtons();
@@ -503,6 +559,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Subscribe to updates from the main process.
   const electronAPI = window.electronAPI;
   if (electronAPI) {
+    electronAPI.onTimerAlertDismissed(dismissNotification);
+    electronAPI.onAlertPreferencesUpdated((settings) => {
+      alertPreferences = settings;
+    });
     // Listen for timer updates.
     const applyTimerState = (state: {
       seconds: number;
@@ -560,7 +620,8 @@ document.addEventListener("DOMContentLoaded", () => {
         timerDurationSeconds = durationSeconds;
       stopTimer();
       showNotification(timerDurationSeconds);
-      playAlarmSound();
+      if (alertPreferences.alarmSoundEnabled)
+        playAlarmSound(alertPreferences.alarmSound);
       setStatus(
         `Timer stopped (${formatDurationLabel(timerDurationSeconds)})`,
         "stopped",

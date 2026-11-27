@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timer finished</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: #f5f7fb;
+        color: #18243a;
+      }
+      main {
+        min-height: 100vh;
+        display: grid;
+        place-content: center;
+        text-align: center;
+      }
+      .alert-card {
+        width: min(420px, calc(100vw - 32px));
+        border: 0;
+        border-radius: 20px;
+      }
+      .alert-icon {
+        font-size: 3rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="p-4">
+      <section class="alert-card card shadow-lg">
+        <div class="card-body p-4 p-sm-5">
+          <div class="alert-icon" aria-hidden="true">⏱️</div>
+          <h1 class="h3 mt-3">Time is up!</h1>
+          <p class="text-secondary mb-4">Your timer has finished.</p>
+          <button
+            id="dismissTimerAlert"
+            class="btn btn-primary btn-lg px-4"
+            type="button"
+          >
+            Dismiss
+          </button>
+        </div>
+      </section>
+    </main>
+    <script>
+      document
+        .getElementById("dismissTimerAlert")
+        ?.addEventListener("click", () => {
+          window.electronAPI?.dismissTimerAlert();
+        });
+    </script>
+  </body>
+</html>

@@ -3,5 +3,8 @@
   "timer": null,
   "countdownWindowVisible": true,
   "advancedControlsVisible": false,
-  "instructionsVisible": false
+  "instructionsVisible": false,
+  "notificationMode": "window",
+  "alarmSoundEnabled": true,
+  "alarmSound": "classic"
 }

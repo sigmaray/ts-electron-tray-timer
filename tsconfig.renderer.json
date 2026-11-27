@@ -5,6 +5,11 @@
     "outDir": "./dist/renderer",
     "rootDir": "./src"
   },
-  "include": ["src/renderer.ts", "src/time.ts", "src/electron-api.d.ts"],
+  "include": [
+    "src/renderer.ts",
+    "src/settings-renderer.ts",
+    "src/time.ts",
+    "src/electron-api.d.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

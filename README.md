@@ -10,6 +10,7 @@ A timer built with TypeScript and Electron that lives in the system tray.
 - Set a duration, then start, pause, resume, or stop the timer
 - Shows the remaining time in the system tray icon
 - Flashes a red icon with an exclamation mark when the timer finishes
+- Stores settings beside the app in portable mode
 - Closing the window minimizes the app to the tray
 - Tray context menu lets you show or minimize the window, or quit the app with confirmation
 - Click the tray icon to show or hide the window; double-click to open it
@@ -75,6 +76,14 @@ npm run format:check
 npm run test:unit
 npm run test:e2e
 ```
+
+## Settings storage
+
+The repository and packaged builds include a `portable-mode` marker. When the directory containing the marker is writable, the app stores `settings.json` beside it. In a packaged app this is normally the `resources` directory; when running from source, it is the application directory. Keep the extracted app folder writable to keep settings portable with it.
+
+If the marker's directory is read-only, the app uses Electron's per-user `userData` directory instead. Remove `portable-mode` from the packaged resources to always use `userData`. On first launch, existing settings are copied from `userData` or older app-directory locations when the selected destination does not already contain settings.
+
+Set `TIMER_SETTINGS_PATH` to use a specific settings file, for example during tests.
 
 ## Troubleshooting
 

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timer Settings</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <style>
+      body {
+        background: #f3f5f8;
+        color: #18243a;
+      }
+      main {
+        max-width: 560px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container py-4">
+      <h1 class="h3 mb-4">Timer settings</h1>
+      <section class="card shadow-sm mb-3">
+        <div class="card-body">
+          <fieldset>
+            <legend class="fs-6 fw-semibold">When the timer finishes</legend>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="notificationMode"
+                id="notificationWindow"
+                value="window"
+              />
+              <label class="form-check-label" for="notificationWindow"
+                >Always-on-top app window</label
+              >
+            </div>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="notificationMode"
+                id="notificationSystem"
+                value="system"
+              />
+              <label class="form-check-label" for="notificationSystem"
+                >System notification</label
+              >
+            </div>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="notificationMode"
+                id="notificationBoth"
+                value="both"
+              />
+              <label class="form-check-label" for="notificationBoth"
+                >Both</label
+              >
+            </div>
+          </fieldset>
+        </div>
+      </section>
+      <section class="card shadow-sm mb-3">
+        <div class="card-body">
+          <fieldset>
+            <legend class="fs-6 fw-semibold">Alarm sound</legend>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="alarmSoundEnabled"
+                id="alarmSoundEnabledYes"
+                value="yes"
+              />
+              <label class="form-check-label" for="alarmSoundEnabledYes"
+                >With sound</label
+              >
+            </div>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="alarmSoundEnabled"
+                id="alarmSoundEnabledNo"
+                value="no"
+              />
+              <label class="form-check-label" for="alarmSoundEnabledNo"
+                >Without sound</label
+              >
+            </div>
+            <div id="alarmSoundOptions">
+              <label class="form-label mt-3" for="alarmSound"
+                >Sound variant</label
+              >
+              <div class="input-group">
+                <select
+                  id="alarmSound"
+                  class="form-select"
+                  aria-label="Alarm sound variant"
+                >
+                  <option value="classic">Classic</option>
+                  <option value="digital">Digital</option>
+                  <option value="gentle">Gentle</option>
+                </select>
+                <button
+                  id="soundTestBtn"
+                  class="btn btn-outline-secondary"
+                  type="button"
+                >
+                  Test
+                </button>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+      <p
+        id="settingsStatus"
+        class="small text-secondary"
+        role="status"
+        aria-live="polite"
+      >
+        Settings are saved automatically.
+      </p>
+      <div class="d-flex justify-content-end">
+        <button id="settingsClose" class="btn btn-primary" type="button">
+          Close
+        </button>
+      </div>
+    </main>
+    <script src="renderer/settings-renderer.js"></script>
+  </body>
+</html>

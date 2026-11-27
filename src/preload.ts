@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("ui-settings-get") as Promise<{
       advancedControlsVisible: boolean;
       instructionsVisible: boolean;
+      notificationMode: "window" | "system" | "both";
+      alarmSoundEnabled: boolean;
+      alarmSound: "classic" | "digital" | "gentle";
     }>,
   /** Updates saved user interface visibility preferences.
    * @param settings The visibility preferences to update.
@@ -22,8 +25,45 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setUiSettings: (settings: {
     advancedControlsVisible?: boolean;
     instructionsVisible?: boolean;
+    notificationMode?: "window" | "system" | "both";
+    alarmSoundEnabled?: boolean;
+    alarmSound?: "classic" | "digital" | "gentle";
   }) => {
     ipcRenderer.send("ui-settings-set", settings);
+  },
+  /** Opens the separate application settings window. */
+  openSettingsWindow: () => {
+    ipcRenderer.send("settings-window-open");
+  },
+  /** Shows the main window above other windows while an app-window alert is active.
+   * @param mode The selected alert mode, or null when dismissing the alert.
+   */
+  setAlertWindowMode: (mode: "window" | "system" | "both" | null) => {
+    ipcRenderer.send("timer-alert-window", mode);
+  },
+  /** Requests dismissal of the timer completion window. */
+  dismissTimerAlert: () => {
+    ipcRenderer.send("timer-alert-dismiss");
+  },
+  /** Subscribes to completion alert dismissal from the separate alert window.
+   * @param callback The handler invoked when the alert window is dismissed.
+   */
+  onTimerAlertDismissed: (callback: () => void) => {
+    ipcRenderer.on("timer-alert-dismissed", () => callback());
+  },
+  /** Subscribes to completion preference updates from the settings window.
+   * @param callback The handler invoked with the new alert preferences.
+   */
+  onAlertPreferencesUpdated: (
+    callback: (settings: {
+      notificationMode: "window" | "system" | "both";
+      alarmSoundEnabled: boolean;
+      alarmSound: "classic" | "digital" | "gentle";
+    }) => void,
+  ) => {
+    ipcRenderer.on("alert-preferences-updated", (_event, settings) =>
+      callback(settings),
+    );
   },
   /** Reports renderer timer and alert state to the main process.
    * @param state The current timer state and alert flags.
