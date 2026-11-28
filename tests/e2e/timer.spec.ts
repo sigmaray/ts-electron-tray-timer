@@ -551,6 +551,86 @@ test.describe("Timer Application", () => {
     await expect(window.locator("#timeAdjustDescription")).toBeVisible();
     await expect(window.locator("#instructions")).toBeVisible();
   });
+
+  /** Verify settings-window preferences persist and reload through the UI.
+   */
+  async function savesAndRestoresSettingsWindowPreferences(): Promise<void> {
+    const settingsWindowPromise = electronApp.waitForEvent("window");
+    await window.locator("#settingsBtn").click();
+    let settingsWindow = await settingsWindowPromise;
+    await settingsWindow.waitForLoadState("domcontentloaded");
+    await expect(
+      settingsWindow.getByRole("heading", { name: "Timer settings" }),
+    ).toBeVisible();
+
+    await settingsWindow.locator("#notificationBoth").check();
+    await settingsWindow.locator("#alarmSoundEnabledYes").check();
+    await settingsWindow.locator("#alarmSound").selectOption("digital");
+    await settingsWindow.locator("#alarmSoundEnabledNo").check();
+    await expect(settingsWindow.locator("#alarmSoundOptions")).toBeHidden();
+    await settingsWindow.locator("#countdownFormat").selectOption("clock");
+
+    const fontSize = settingsWindow.locator("#countdownFontSize");
+    await fontSize.focus();
+    await fontSize.press("Home");
+    for (let step = 0; step < 12; step++) await fontSize.press("ArrowRight");
+    await expect(fontSize).toHaveValue("20");
+
+    await settingsWindow.locator("#countdownMenuButtonVisible").uncheck();
+    await settingsWindow.locator("#settingsSave").click();
+    await expect.poll(() => settingsWindow.isClosed()).toBe(true);
+    await expect
+      .poll(() => JSON.parse(fs.readFileSync(settingsPath, "utf8")))
+      .toMatchObject({
+        notificationMode: "both",
+        alarmSoundEnabled: false,
+        alarmSound: "digital",
+        countdownFormat: "clock",
+        countdownFontSize: 20,
+        countdownMenuButtonVisible: false,
+      });
+
+    await electronApp.close();
+    const electronPath = require("electron");
+    const mainPath = path.join(__dirname, "../../dist/main.js");
+    electronApp = await electron.launch({
+      executablePath: electronPath,
+      args: [mainPath],
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        TIMER_SETTINGS_PATH: settingsPath,
+      },
+    });
+    window = await electronApp.firstWindow();
+    await window.waitForLoadState("domcontentloaded");
+    await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]?.show(),
+    );
+
+    const reopenedSettingsWindowPromise = electronApp.waitForEvent("window");
+    await window.locator("#settingsBtn").click();
+    settingsWindow = await reopenedSettingsWindowPromise;
+    await settingsWindow.waitForLoadState("domcontentloaded");
+    await expect(settingsWindow.locator("#notificationBoth")).toBeChecked();
+    await expect(settingsWindow.locator("#alarmSoundEnabledNo")).toBeChecked();
+    await expect(settingsWindow.locator("#alarmSound")).toHaveValue("digital");
+    await expect(settingsWindow.locator("#alarmSoundOptions")).toBeHidden();
+    await expect(settingsWindow.locator("#countdownFormat")).toHaveValue(
+      "clock",
+    );
+    await expect(settingsWindow.locator("#countdownFontSize")).toHaveValue(
+      "20",
+    );
+    await expect(
+      settingsWindow.locator("#countdownMenuButtonVisible"),
+    ).not.toBeChecked();
+  }
+
+  test(
+    "сохраняет настройки окна Settings и восстанавливает их после перезапуска",
+    savesAndRestoresSettingsWindowPreferences,
+  );
 });
 
 test("shows a missed timer alert once after restart", async () => {
