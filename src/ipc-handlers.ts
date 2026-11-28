@@ -1,4 +1,4 @@
-import { app, ipcMain, type WebContents } from "electron";
+import { ipcMain, type WebContents } from "electron";
 import { MAX_TIMER_SECONDS } from "./time";
 
 /** Renderer-facing snapshot of the current timer state. */
@@ -11,6 +11,7 @@ export type TimerSnapshot = {
 
 /** Visibility preferences exposed to the main renderer window. */
 type UiSettings = {
+  confirmQuit: boolean;
   advancedControlsVisible: boolean;
   instructionsVisible: boolean;
   notificationMode: "window" | "system" | "both";
@@ -20,6 +21,10 @@ type UiSettings = {
   countdownFontSize: number;
   countdownMenuButtonVisible: boolean;
   countdownBackgroundColor: string;
+  trayIconColor: string;
+  mainWindowBackgroundColor: string;
+  sectionHeaderBackgroundColor: string;
+  sectionBackgroundColor: string;
 };
 
 /** Main-process operations required by the IPC registration layer. */
@@ -45,6 +50,7 @@ type IpcDependencies = {
   resizeCountdownWindow(width: number, height: number): void;
   minimizeWindow(): void;
   clickTray(): void;
+  requestQuit(): void;
 };
 
 /** Check whether an IPC payload is a non-null object record.
@@ -85,6 +91,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     )
       return;
     const settings: Partial<UiSettings> = {};
+    if (typeof value.confirmQuit === "boolean") settings.confirmQuit = value.confirmQuit;
     if (typeof value.advancedControlsVisible === "boolean")
       settings.advancedControlsVisible = value.advancedControlsVisible;
     if (typeof value.instructionsVisible === "boolean")
@@ -124,6 +131,10 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     )
       settings.countdownBackgroundColor =
         value.countdownBackgroundColor.toLowerCase();
+    for (const colorKey of ["trayIconColor", "mainWindowBackgroundColor", "sectionHeaderBackgroundColor", "sectionBackgroundColor"] as const) {
+      const color = value[colorKey];
+      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) settings[colorKey] = color.toLowerCase();
+    }
     if (Object.keys(settings).length) deps.setUiSettings(settings);
   });
 
@@ -226,6 +237,6 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
 
   ipcMain.on("close-app", (event) => {
     if (!deps.isMainWindowSender(event.sender)) return;
-    app.quit();
+    deps.requestQuit();
   });
 }

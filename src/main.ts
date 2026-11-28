@@ -78,6 +78,11 @@ let countdownFormatPref: "compact" | "clock" | "seconds" = "compact";
 let countdownFontSizePref = 15;
 let countdownMenuButtonVisiblePref = true;
 let countdownBackgroundColorPref = "#5b7fa6";
+let trayIconColorPref = "#5b7fa6";
+let mainWindowBackgroundColorPref = "#f8f9fa";
+let sectionHeaderBackgroundColorPref = "#0d6efd";
+let sectionBackgroundColorPref = "#ffffff";
+let confirmQuitPref = true;
 
 const SETTINGS_VERSION = 1 as const;
 const SETTINGS_FILE_NAME = "settings.json";
@@ -248,6 +253,11 @@ function saveSettings(): void {
     countdownFontSize: countdownFontSizePref,
     countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
     countdownBackgroundColor: countdownBackgroundColorPref,
+    trayIconColor: trayIconColorPref,
+    mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+    sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+    sectionBackgroundColor: sectionBackgroundColorPref,
+    confirmQuit: confirmQuitPref,
   };
 
   let settingsPath = getSettingsPath();
@@ -320,6 +330,11 @@ function restoreSettings(): void {
   countdownFontSizePref = settings.countdownFontSize ?? 15;
   countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible ?? true;
   countdownBackgroundColorPref = settings.countdownBackgroundColor ?? "#5b7fa6";
+  trayIconColorPref = settings.trayIconColor ?? "#5b7fa6";
+  mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor ?? "#f8f9fa";
+  sectionHeaderBackgroundColorPref = settings.sectionHeaderBackgroundColor ?? "#0d6efd";
+  sectionBackgroundColorPref = settings.sectionBackgroundColor ?? "#ffffff";
+  confirmQuitPref = settings.confirmQuit ?? true;
   countdownWindowPosition = settings.countdownWindowPosition;
 
   // Do not restore the alerting state on startup.
@@ -936,28 +951,31 @@ function updateTrayMenu(): void {
     { type: "separator" },
     {
       label: "Quit",
-      click: async () => {
-        const options: Electron.MessageBoxOptions = {
-          type: "question",
-          buttons: ["Cancel", "Quit"],
-          defaultId: 0,
-          cancelId: 0,
-          title: "Confirm quit",
-          message: "Are you sure you want to quit the app?",
-        };
-        const result = mainWindow
-          ? await dialog.showMessageBox(mainWindow, options)
-          : await dialog.showMessageBox(options);
-
-        if (result.response === 1) {
-          isQuitting = true;
-          app.quit();
-        }
-      },
+      click: requestQuit,
     },
   ]);
 
   tray.setContextMenu(contextMenu);
+}
+
+/** Confirm and quit the application according to the saved preference. */
+async function requestQuit(): Promise<void> {
+  if (confirmQuitPref) {
+    const options: Electron.MessageBoxOptions = {
+      type: "question",
+      buttons: ["Cancel", "Quit"],
+      defaultId: 0,
+      cancelId: 0,
+      title: "Confirm quit",
+      message: "Are you sure you want to quit the app?",
+    };
+    const result = mainWindow
+      ? await dialog.showMessageBox(mainWindow, options)
+      : await dialog.showMessageBox(options);
+    if (result.response !== 1) return;
+  }
+  isQuitting = true;
+  app.quit();
 }
 
 /** Refresh the tray icon and tooltip from the current timer state. */
@@ -973,16 +991,16 @@ function updateTrayIcon(): void {
     tooltipText = "⏰ Time is up!";
   } else if (timerState.isPaused && timerState.seconds > 0) {
     // Show "p" when the timer is paused.
-    icon = createTextIcon("p", false);
+    icon = createTextIcon("p", false, trayIconColorPref);
     tooltipText = `Timer paused: ${formatTimeForTooltip(timerState.seconds)}`;
   } else if (timerState.isRunning && timerState.seconds > 0) {
     // Show the remaining time.
     const text = formatTimeForTray(timerState.seconds);
-    icon = createTextIcon(text, false);
+    icon = createTextIcon(text, false, trayIconColorPref);
     tooltipText = `Timer: ${formatTimeForTooltip(timerState.seconds)}`;
   } else {
     // Show a dash when the timer is not running.
-    icon = createTextIcon("—", false);
+    icon = createTextIcon("—", false, trayIconColorPref);
     tooltipText = "Timer is not running";
   }
 
@@ -1219,7 +1237,7 @@ function createWindow(): void {
 /** Create the system tray icon and its click handlers. */
 function createTray(): void {
   // Start with a dash icon.
-  tray = new Tray(createTextIcon("—", false));
+  tray = new Tray(createTextIcon("—", false, trayIconColorPref));
 
   updateTrayMenu();
   updateTrayIcon();
@@ -1270,6 +1288,11 @@ function initializeApp(): void {
       countdownFontSize: countdownFontSizePref,
       countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
       countdownBackgroundColor: countdownBackgroundColorPref,
+      trayIconColor: trayIconColorPref,
+      mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+      sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+      sectionBackgroundColor: sectionBackgroundColorPref,
+      confirmQuit: confirmQuitPref,
     }),
     setUiSettings: (settings) => {
       if (typeof settings.advancedControlsVisible === "boolean")
@@ -1289,8 +1312,19 @@ function initializeApp(): void {
         countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible;
       if (settings.countdownBackgroundColor)
         countdownBackgroundColorPref = settings.countdownBackgroundColor;
+      if (settings.trayIconColor) trayIconColorPref = settings.trayIconColor;
+      if (settings.mainWindowBackgroundColor) mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor;
+      if (settings.sectionHeaderBackgroundColor) sectionHeaderBackgroundColorPref = settings.sectionHeaderBackgroundColor;
+      if (settings.sectionBackgroundColor) sectionBackgroundColorPref = settings.sectionBackgroundColor;
+      if (typeof settings.confirmQuit === "boolean") confirmQuitPref = settings.confirmQuit;
       updateCountdownWindow();
+      updateTrayIcon();
       saveSettings();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("ui-colors-updated", {
+        mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+        sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+        sectionBackgroundColor: sectionBackgroundColorPref,
+      });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("alert-preferences-updated", {
           notificationMode,
@@ -1335,6 +1369,7 @@ function initializeApp(): void {
       }
       updateTrayMenu();
     },
+    requestQuit,
   });
 
   app.on("activate", () => {

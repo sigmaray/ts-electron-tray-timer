@@ -1,6 +1,7 @@
 /** Saved preferences for completion notifications and alarm sound.
  */
 type AlertSettings = {
+  confirmQuit: boolean;
   notificationMode: "window" | "system" | "both";
   alarmSoundEnabled: boolean;
   alarmSound: "classic" | "digital" | "gentle";
@@ -8,6 +9,10 @@ type AlertSettings = {
   countdownFontSize: number;
   countdownMenuButtonVisible: boolean;
   countdownBackgroundColor: string;
+  trayIconColor: string;
+  mainWindowBackgroundColor: string;
+  sectionHeaderBackgroundColor: string;
+  sectionBackgroundColor: string;
 };
 
 let previewContext: AudioContext | null = null;
@@ -70,7 +75,7 @@ function previewSound(sound: AlertSettings["alarmSound"]): void {
   }, 2500);
 }
 
-/** Initializes the settings controls and persists every changed preference.
+/** Initializes the settings controls and stages preference changes until applied.
  */
 async function initializeSettingsWindow(): Promise<void> {
   const api = window.electronAPI;
@@ -78,6 +83,7 @@ async function initializeSettingsWindow(): Promise<void> {
   if (!api) return;
 
   const settings = await api.getUiSettings().catch(() => ({
+    confirmQuit: true,
     advancedControlsVisible: false,
     instructionsVisible: false,
     notificationMode: "window" as const,
@@ -87,7 +93,14 @@ async function initializeSettingsWindow(): Promise<void> {
     countdownFontSize: 15,
     countdownMenuButtonVisible: true,
     countdownBackgroundColor: "#5b7fa6",
+    trayIconColor: "#5b7fa6",
+    mainWindowBackgroundColor: "#f8f9fa",
+    sectionHeaderBackgroundColor: "#0d6efd",
+    sectionBackgroundColor: "#ffffff",
   }));
+  const pending: Partial<AlertSettings> = {};
+  const confirmQuit = document.getElementById("confirmQuit") as HTMLInputElement;
+  confirmQuit.checked = settings.confirmQuit;
   const notificationMode = document.querySelector<HTMLInputElement>(
     `input[name="notificationMode"][value="${settings.notificationMode}"]`,
   );
@@ -123,21 +136,66 @@ async function initializeSettingsWindow(): Promise<void> {
     countdownFontSizeValue.textContent = `${settings.countdownFontSize} pt`;
   countdownMenuButtonVisible.checked = settings.countdownMenuButtonVisible;
   countdownBackgroundColor.value = settings.countdownBackgroundColor;
+  const colorPairs = [
+    ["trayIconColor", "trayIconColorHex"],
+    ["countdownBackgroundColor", "countdownBackgroundColorHex"],
+    ["mainWindowBackgroundColor", "mainWindowBackgroundColorHex"],
+    ["sectionHeaderBackgroundColor", "sectionHeaderBackgroundColorHex"],
+    ["sectionBackgroundColor", "sectionBackgroundColorHex"],
+  ] as const;
+  for (const [pickerId, hexId] of colorPairs) {
+    const picker = document.getElementById(pickerId) as HTMLInputElement;
+    const hex = document.getElementById(hexId) as HTMLInputElement;
+    picker.value = settings[pickerId];
+    hex.value = picker.value;
+    picker.addEventListener("input", () => { hex.value = picker.value; hex.setCustomValidity(""); save({ [pickerId]: picker.value } as Partial<AlertSettings>); });
+    hex.addEventListener("input", () => {
+      const value = hex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+        picker.value = value.toLowerCase(); hex.setCustomValidity("");
+        save({ [pickerId]: picker.value } as Partial<AlertSettings>);
+      } else hex.setCustomValidity("Enter a color in #RRGGBB format.");
+    });
+    hex.addEventListener("blur", () => { if (/^#[0-9a-fA-F]{6}$/.test(hex.value.trim())) hex.value = picker.value; });
+  }
 
-  /** Saves a partial preference update and reflects its status in the window.
+  /** Stages a partial preference update and reflects its status in the window.
    * @param update The preference values changed by the user.
    */
   function save(update: {
     notificationMode?: AlertSettings["notificationMode"];
+    confirmQuit?: boolean;
     alarmSoundEnabled?: boolean;
     alarmSound?: AlertSettings["alarmSound"];
     countdownFormat?: AlertSettings["countdownFormat"];
     countdownFontSize?: number;
     countdownMenuButtonVisible?: boolean;
     countdownBackgroundColor?: string;
+    trayIconColor?: string;
+    mainWindowBackgroundColor?: string;
+    sectionHeaderBackgroundColor?: string;
+    sectionBackgroundColor?: string;
   }): void {
-    api!.setUiSettings(update);
-    if (status) status.textContent = "Settings are saved automatically.";
+    Object.assign(pending, update);
+    if (status) status.textContent = "Unsaved changes.";
+  }
+
+  /** Applies staged preferences, reporting invalid colors before saving.
+   * @param closeAfterSave Whether to close the settings window after saving.
+   */
+  function applySettings(closeAfterSave: boolean): void {
+    const invalidHex = colorPairs
+      .map(([, hexId]) => document.getElementById(hexId) as HTMLInputElement)
+      .find((hex) => !/^#[0-9a-fA-F]{6}$/.test(hex.value.trim()));
+    if (invalidHex) {
+      invalidHex.setCustomValidity("Enter a color in #RRGGBB format.");
+      invalidHex.reportValidity();
+      invalidHex.focus();
+      return;
+    }
+    if (Object.keys(pending).length) api!.setUiSettings(pending);
+    if (status) status.textContent = "Settings applied.";
+    if (closeAfterSave) window.close();
   }
 
   document
@@ -150,6 +208,7 @@ async function initializeSettingsWindow(): Promise<void> {
           });
       });
     });
+  confirmQuit.addEventListener("change", () => save({ confirmQuit: confirmQuit.checked }));
   document
     .querySelectorAll<HTMLInputElement>('input[name="alarmSoundEnabled"]')
     .forEach((input) => {
@@ -180,9 +239,13 @@ async function initializeSettingsWindow(): Promise<void> {
   countdownMenuButtonVisible.addEventListener("change", () => {
     save({ countdownMenuButtonVisible: countdownMenuButtonVisible.checked });
   });
-  countdownBackgroundColor.addEventListener("input", () => {
-    save({
-      countdownBackgroundColor: countdownBackgroundColor.value.toLowerCase(),
+  document.getElementById("resetColors")?.addEventListener("click", () => {
+    const defaults = ["#5b7fa6", "#5b7fa6", "#f8f9fa", "#0d6efd", "#ffffff"];
+    colorPairs.forEach(([pickerId, hexId], index) => {
+      const picker = document.getElementById(pickerId) as HTMLInputElement;
+      const hex = document.getElementById(hexId) as HTMLInputElement;
+      picker.value = defaults[index]; hex.value = defaults[index]; hex.setCustomValidity("");
+      save({ [pickerId]: defaults[index] } as Partial<AlertSettings>);
     });
   });
   document.getElementById("soundTestBtn")?.addEventListener("click", () => {
@@ -191,6 +254,8 @@ async function initializeSettingsWindow(): Promise<void> {
   document.getElementById("settingsClose")?.addEventListener("click", () => {
     window.close();
   });
+  document.getElementById("settingsApply")?.addEventListener("click", () => applySettings(false));
+  document.getElementById("settingsSave")?.addEventListener("click", () => applySettings(true));
 }
 
 document.addEventListener("DOMContentLoaded", () => {

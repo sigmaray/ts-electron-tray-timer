@@ -484,6 +484,16 @@ function dismissNotification(): void {
 
 // Initialize the page after it loads.
 document.addEventListener("DOMContentLoaded", () => {
+  /** Applies validated appearance preferences to the main timer window.
+   * @param colors The main-window and section background colors to apply.
+   */
+  const applyUiColors = (colors: { mainWindowBackgroundColor: string; sectionHeaderBackgroundColor: string; sectionBackgroundColor: string }): void => {
+    if (/^#[0-9a-f]{6}$/i.test(colors.mainWindowBackgroundColor)) document.documentElement.style.setProperty("--main-window-background-color", colors.mainWindowBackgroundColor);
+    if (/^#[0-9a-f]{6}$/i.test(colors.sectionHeaderBackgroundColor)) document.documentElement.style.setProperty("--section-header-background-color", colors.sectionHeaderBackgroundColor);
+    if (/^#[0-9a-f]{6}$/i.test(colors.sectionBackgroundColor)) document.documentElement.style.setProperty("--section-background-color", colors.sectionBackgroundColor);
+  };
+  void window.electronAPI?.getUiSettings().then(applyUiColors);
+  window.electronAPI?.onUiColorsUpdated(applyUiColors);
   setStatus("Timer is not set", "stopped");
 
   const advancedControlsToggle = document.getElementById(
@@ -638,9 +648,11 @@ document.addEventListener("DOMContentLoaded", () => {
         "countdownWindowBtn",
       ) as HTMLButtonElement;
       if (btn) {
-        btn.textContent = visible
-          ? "Hide countdown window"
-          : "Show countdown window";
+        const label = btn.querySelector("span");
+        if (label)
+          label.textContent = visible
+            ? "Hide countdown window"
+            : "Show countdown window";
       }
     });
   }

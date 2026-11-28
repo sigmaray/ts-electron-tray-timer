@@ -4,12 +4,13 @@ import { createCanvas } from "canvas";
 /** Draw a compact tray icon with a centered label.
  * @param text Short label to render in the icon.
  * @param isBlinking Whether to use the alert red background.
+ * @param backgroundColor The configured background color for a normal icon.
  */
-export function createTextIcon(text: string, isBlinking = false): NativeImage {
+export function createTextIcon(text: string, isBlinking = false, backgroundColor = "#7c3aed"): NativeImage {
   const size = 22;
   const canvas = createCanvas(size, size);
   const context = canvas.getContext("2d");
-  context.fillStyle = isBlinking ? "#ff0000" : "#7c3aed";
+  context.fillStyle = isBlinking ? "#ff0000" : backgroundColor;
   context.fillRect(0, 0, size, size);
   context.fillStyle = "#ffffff";
   context.font = "bold 12px Arial";

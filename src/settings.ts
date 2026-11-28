@@ -31,6 +31,11 @@ export type PersistedSettings = {
   countdownFontSize?: number;
   countdownMenuButtonVisible?: boolean;
   countdownBackgroundColor?: string;
+  confirmQuit?: boolean;
+  trayIconColor?: string;
+  mainWindowBackgroundColor?: string;
+  sectionHeaderBackgroundColor?: string;
+  sectionBackgroundColor?: string;
 };
 
 /** Screen-space bounds of a display used to identify it after restart.
@@ -201,6 +206,7 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
     typeof value.advancedControlsVisible !== "boolean"
   )
     return null;
+  if (value.confirmQuit !== undefined && typeof value.confirmQuit !== "boolean") return null;
   if (
     value.instructionsVisible !== undefined &&
     typeof value.instructionsVisible !== "boolean"
@@ -250,6 +256,9 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
       !/^#[0-9a-fA-F]{6}$/.test(value.countdownBackgroundColor))
   )
     return null;
+  for (const colorKey of ["trayIconColor", "mainWindowBackgroundColor", "sectionHeaderBackgroundColor", "sectionBackgroundColor"] as const) {
+    if (value[colorKey] !== undefined && (typeof value[colorKey] !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value[colorKey]))) return null;
+  }
   const timer = parseTimer(value.timer);
   if (timer === undefined) return null;
   const countdownWindowPosition = parseCountdownWindowPosition(
@@ -264,6 +273,7 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
     ...(typeof value.advancedControlsVisible === "boolean"
       ? { advancedControlsVisible: value.advancedControlsVisible }
       : {}),
+    ...(typeof value.confirmQuit === "boolean" ? { confirmQuit: value.confirmQuit } : {}),
     ...(typeof value.instructionsVisible === "boolean"
       ? { instructionsVisible: value.instructionsVisible }
       : {}),
@@ -297,5 +307,9 @@ export function parsePersistedSettings(raw: string): PersistedSettings | null {
             value.countdownBackgroundColor.toLowerCase(),
         }
       : {}),
+    ...(typeof value.trayIconColor === "string" ? { trayIconColor: value.trayIconColor.toLowerCase() } : {}),
+    ...(typeof value.mainWindowBackgroundColor === "string" ? { mainWindowBackgroundColor: value.mainWindowBackgroundColor.toLowerCase() } : {}),
+    ...(typeof value.sectionHeaderBackgroundColor === "string" ? { sectionHeaderBackgroundColor: value.sectionHeaderBackgroundColor.toLowerCase() } : {}),
+    ...(typeof value.sectionBackgroundColor === "string" ? { sectionBackgroundColor: value.sectionBackgroundColor.toLowerCase() } : {}),
   };
 }

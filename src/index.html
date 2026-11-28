@@ -8,16 +8,16 @@
       rel="stylesheet"
       href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
     />
+    <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <style>
       [hidden] {
         display: none !important;
       }
 
+
       body {
         min-height: 100vh;
-        background:
-          radial-gradient(ellipse at top left, #e4e5e7 0, transparent 38%),
-          #dfe1e4;
+        background: var(--main-window-background-color, #f8f9fa);
         color: #18243a;
       }
 
@@ -29,12 +29,13 @@
         overflow: hidden;
         border: 1px solid #e6ebf3;
         border-radius: 24px;
-        background-color: #e9eaec;
+        background-color: var(--section-background-color, #ffffff);
         box-shadow: 0 24px 70px rgb(35 55 90 / 12%);
       }
 
       .timer-app__header {
         padding: 1.5rem 1.75rem 1rem;
+        background: var(--section-header-background-color, transparent);
       }
 
       .timer-app__eyebrow {
@@ -250,27 +251,27 @@
             <div
               class="timer-app__primary-actions d-flex flex-wrap justify-content-center gap-2"
             >
-              <button id="startBtn" class="btn btn-primary px-4">Start</button>
+              <button id="startBtn" class="btn btn-primary px-4"><i class="fa-solid fa-play" aria-hidden="true"></i> Start</button>
               <button
                 id="pauseBtn"
                 class="btn btn-outline-primary px-4"
                 disabled
               >
-                Pause
+                <i class="fa-solid fa-pause" aria-hidden="true"></i> Pause
               </button>
               <button
                 id="stopBtn"
                 class="btn btn-outline-secondary px-4"
                 disabled
               >
-                Stop
+                <i class="fa-solid fa-stop" aria-hidden="true"></i> Stop
               </button>
               <button
                 id="dismissAlertBtn"
                 class="timer-app__alert-button btn btn-danger px-4"
                 style="display: none"
               >
-                Dismiss alert
+                <i class="fa-solid fa-bell-slash" aria-hidden="true"></i> Dismiss alert
               </button>
             </div>
 
@@ -285,16 +286,16 @@
               class="timer-app__app-actions d-flex flex-wrap justify-content-center gap-2"
             >
               <button id="minimizeBtn" class="btn btn-sm btn-light">
-                Minimize to tray
+                <i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Minimize to tray
               </button>
               <button id="countdownWindowBtn" class="btn btn-sm btn-light">
-                Show countdown window
+                <i class="fa-regular fa-window-restore" aria-hidden="true"></i> <span>Show countdown window</span>
               </button>
               <button id="settingsBtn" class="btn btn-sm btn-light">
-                Settings
+                <i class="fa-solid fa-gear" aria-hidden="true"></i> Settings
               </button>
               <button id="closeBtn" class="btn btn-sm btn-outline-danger">
-                Close
+                <i class="fa-solid fa-x" aria-hidden="true"></i> Close
               </button>
             </div>
           </div>

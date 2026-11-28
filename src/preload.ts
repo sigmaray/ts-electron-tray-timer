@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Retrieves the saved user interface visibility preferences. */
   getUiSettings: () =>
     ipcRenderer.invoke("ui-settings-get") as Promise<{
+      confirmQuit: boolean;
       advancedControlsVisible: boolean;
       instructionsVisible: boolean;
       notificationMode: "window" | "system" | "both";
@@ -22,11 +23,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       countdownFontSize: number;
       countdownMenuButtonVisible: boolean;
       countdownBackgroundColor: string;
+      trayIconColor: string;
+      mainWindowBackgroundColor: string;
+      sectionHeaderBackgroundColor: string;
+      sectionBackgroundColor: string;
     }>,
   /** Updates saved user interface visibility preferences.
    * @param settings The visibility preferences to update.
    */
   setUiSettings: (settings: {
+    confirmQuit?: boolean;
     advancedControlsVisible?: boolean;
     instructionsVisible?: boolean;
     notificationMode?: "window" | "system" | "both";
@@ -36,8 +42,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     countdownFontSize?: number;
     countdownMenuButtonVisible?: boolean;
     countdownBackgroundColor?: string;
+    trayIconColor?: string;
+    mainWindowBackgroundColor?: string;
+    sectionHeaderBackgroundColor?: string;
+    sectionBackgroundColor?: string;
   }) => {
     ipcRenderer.send("ui-settings-set", settings);
+  },
+  /** Subscribes to updates of the main window's configurable colors.
+   * @param callback The handler invoked with the latest color preferences.
+   */
+  onUiColorsUpdated: (callback: (colors: { mainWindowBackgroundColor: string; sectionHeaderBackgroundColor: string; sectionBackgroundColor: string }) => void) => {
+    ipcRenderer.on("ui-colors-updated", (_event, colors) => callback(colors));
   },
   /** Opens the separate application settings window. */
   openSettingsWindow: () => {

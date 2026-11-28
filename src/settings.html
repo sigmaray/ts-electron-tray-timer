@@ -8,6 +8,7 @@
       rel="stylesheet"
       href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
     />
+    <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <style>
       body {
         background: #f3f5f8;
@@ -104,15 +105,26 @@
               >Show menu button</label
             >
           </div>
-          <label class="form-label mt-3" for="countdownBackgroundColor"
-            >Background color</label
-          >
-          <input
-            id="countdownBackgroundColor"
-            class="form-control form-control-color"
-            type="color"
-            title="Choose countdown window background"
-          />
+        </div>
+      </section>
+      <section class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Application</div>
+        <div class="card-body">
+          <div class="form-check">
+            <input id="confirmQuit" class="form-check-input" type="checkbox" checked />
+            <label class="form-check-label" for="confirmQuit">Ask for confirmation before quitting</label>
+          </div>
+        </div>
+      </section>
+      <section class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Colors</div>
+        <div class="card-body">
+          <div class="mb-3"><label class="form-label" for="trayIconColor">Tray icon background</label><div class="input-group"><input id="trayIconColor" class="form-control form-control-color flex-shrink-0" style="width:3.5rem" type="color"><span class="input-group-text">HEX</span><input id="trayIconColorHex" class="form-control font-monospace" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Tray icon background HEX color" autocomplete="off" spellcheck="false"></div></div>
+          <div class="mb-3"><label class="form-label" for="countdownBackgroundColor">Countdown window background</label><div class="input-group"><input id="countdownBackgroundColor" class="form-control form-control-color flex-shrink-0" style="width:3.5rem" type="color"><span class="input-group-text">HEX</span><input id="countdownBackgroundColorHex" class="form-control font-monospace" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Countdown window background HEX color" autocomplete="off" spellcheck="false"></div></div>
+          <div class="mb-3"><label class="form-label" for="mainWindowBackgroundColor">Main window background</label><div class="input-group"><input id="mainWindowBackgroundColor" class="form-control form-control-color flex-shrink-0" style="width:3.5rem" type="color"><span class="input-group-text">HEX</span><input id="mainWindowBackgroundColorHex" class="form-control font-monospace" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Main window background HEX color" autocomplete="off" spellcheck="false"></div></div>
+          <div class="mt-3"><label class="form-label" for="sectionHeaderBackgroundColor">Section header background</label><div class="input-group"><input id="sectionHeaderBackgroundColor" class="form-control form-control-color flex-shrink-0" style="width:3.5rem" type="color"><span class="input-group-text">HEX</span><input id="sectionHeaderBackgroundColorHex" class="form-control font-monospace" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Section header background HEX color" autocomplete="off" spellcheck="false"></div></div>
+          <div class="mt-3"><label class="form-label" for="sectionBackgroundColor">Section background</label><div class="input-group"><input id="sectionBackgroundColor" class="form-control form-control-color flex-shrink-0" style="width:3.5rem" type="color"><span class="input-group-text">HEX</span><input id="sectionBackgroundColorHex" class="form-control font-monospace" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Section background HEX color" autocomplete="off" spellcheck="false"></div></div>
+          <button id="resetColors" class="btn btn-link px-0 pb-0" type="button"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset colors to defaults</button>
         </div>
       </section>
       <section class="card shadow-sm mb-3">
@@ -169,18 +181,11 @@
           </fieldset>
         </div>
       </section>
-      <p
-        id="settingsStatus"
-        class="small text-secondary"
-        role="status"
-        aria-live="polite"
-      >
-        Settings are saved automatically.
-      </p>
-      <div class="d-flex justify-content-end">
-        <button id="settingsClose" class="btn btn-primary" type="button">
-          Close
-        </button>
+      <p id="settingsStatus" class="small text-secondary" role="status" aria-live="polite"></p>
+      <div class="d-flex justify-content-end gap-2">
+        <button id="settingsClose" class="btn btn-secondary" type="button"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Close</button>
+        <button id="settingsApply" class="btn btn-outline-primary" type="button"><i class="fa-solid fa-check" aria-hidden="true"></i> Apply</button>
+        <button id="settingsSave" class="btn btn-primary" type="button"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save</button>
       </div>
     </main>
     <script src="renderer/settings-renderer.js"></script>
