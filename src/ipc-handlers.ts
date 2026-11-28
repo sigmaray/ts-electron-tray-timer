@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from "electron";
+import type { IpcMain, WebContents } from "electron";
 import { MAX_TIMER_SECONDS } from "./time";
 
 /** Renderer-facing snapshot of the current timer state. */
@@ -62,9 +62,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Register validated IPC handlers for the main and countdown windows.
  * @param deps Main-process callbacks and sender authorization checks.
+ * @param ipc Electron IPC registrar used to install channel handlers.
  */
-export function registerIpcHandlers(deps: IpcDependencies): void {
-  ipcMain.handle("ui-settings-get", (event) => {
+export function registerIpcHandlers(
+  deps: IpcDependencies,
+  ipc: Pick<IpcMain, "handle" | "on">,
+): void {
+  ipc.handle("ui-settings-get", (event) => {
     if (
       !deps.isMainWindowSender(event.sender) &&
       !deps.isSettingsWindowSender(event.sender)
@@ -73,17 +77,17 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     return deps.getUiSettings();
   });
 
-  ipcMain.on("settings-window-open", (event) => {
+  ipc.on("settings-window-open", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.openSettingsWindow();
   });
 
-  ipcMain.handle("timer-state-get", (event) => {
+  ipc.handle("timer-state-get", (event) => {
     if (!deps.isMainWindowSender(event.sender))
       throw new Error("Unauthorized IPC sender");
     return deps.getTimerState();
   });
 
-  ipcMain.on("ui-settings-set", (event, value: unknown) => {
+  ipc.on("ui-settings-set", (event, value: unknown) => {
     if (
       (!deps.isMainWindowSender(event.sender) &&
         !deps.isSettingsWindowSender(event.sender)) ||
@@ -145,7 +149,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     if (Object.keys(settings).length) deps.setUiSettings(settings);
   });
 
-  ipcMain.on("timer-alert-window", (event, value: unknown) => {
+  ipc.on("timer-alert-window", (event, value: unknown) => {
     if (
       !deps.isMainWindowSender(event.sender) ||
       (value !== null &&
@@ -157,11 +161,11 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     deps.setAlertWindowMode(value);
   });
 
-  ipcMain.on("timer-alert-dismiss", (event) => {
+  ipc.on("timer-alert-dismiss", (event) => {
     if (deps.isAlertWindowSender(event.sender)) deps.dismissAlertWindow();
   });
 
-  ipcMain.on("timer-state-update", (event, value: unknown) => {
+  ipc.on("timer-state-update", (event, value: unknown) => {
     if (
       !deps.isMainWindowSender(event.sender) ||
       !isRecord(value) ||
@@ -171,7 +175,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     deps.setAlerting(value.isAlerting);
   });
 
-  ipcMain.on("timer-start", (event, value: unknown) => {
+  ipc.on("timer-start", (event, value: unknown) => {
     if (
       !deps.isMainWindowSender(event.sender) ||
       typeof value !== "number" ||
@@ -183,15 +187,15 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     deps.startTimer(value);
   });
 
-  ipcMain.on("timer-stop", (event) => {
+  ipc.on("timer-stop", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.stopTimer();
   });
 
-  ipcMain.on("timer-pause-resume", (event) => {
+  ipc.on("timer-pause-resume", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.pauseResumeTimer();
   });
 
-  ipcMain.on("timer-adjust", (event, value: unknown) => {
+  ipc.on("timer-adjust", (event, value: unknown) => {
     if (
       !deps.isMainWindowSender(event.sender) ||
       typeof value !== "number" ||
@@ -202,20 +206,20 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     deps.adjustTimerTime(value);
   });
 
-  ipcMain.on("countdown-window-toggle", (event) => {
+  ipc.on("countdown-window-toggle", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.toggleCountdownWindow();
   });
 
-  ipcMain.on("countdown-window-close", (event) => {
+  ipc.on("countdown-window-close", (event) => {
     if (deps.isCountdownWindowSender(event.sender)) deps.closeCountdownWindow();
   });
 
-  ipcMain.on("countdown-window-menu", (event) => {
+  ipc.on("countdown-window-menu", (event) => {
     if (deps.isCountdownWindowSender(event.sender))
       deps.showCountdownWindowMenu();
   });
 
-  ipcMain.on(
+  ipc.on(
     "countdown-window-resize",
     (event, width: unknown, height: unknown) => {
       if (
@@ -234,15 +238,15 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     },
   );
 
-  ipcMain.on("minimize-window", (event) => {
+  ipc.on("minimize-window", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.minimizeWindow();
   });
 
-  ipcMain.on("tray-click", (event) => {
+  ipc.on("tray-click", (event) => {
     if (deps.isMainWindowSender(event.sender)) deps.clickTray();
   });
 
-  ipcMain.on("close-app", (event) => {
+  ipc.on("close-app", (event) => {
     if (!deps.isMainWindowSender(event.sender)) return;
     deps.requestQuit();
   });

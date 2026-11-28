@@ -1,14 +1,26 @@
-import { app, BrowserWindow, Tray, Menu, dialog, screen } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  dialog,
+  screen,
+  ipcMain,
+} from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import {
   parsePersistedSettings,
+  isCountdownPositionWithinWorkArea,
+  resolveCountdownWindowPosition,
+  type CountdownDisplay,
   type CountdownWindowPosition,
   type PersistedSettings,
   type PersistedTimer,
 } from "./settings";
 import { MAX_TIMER_SECONDS } from "./time";
 import { registerIpcHandlers } from "./ipc-handlers";
+import { writeSettingsAtomically } from "./settings-storage";
 import {
   createAppIcon,
   createTextIcon,
@@ -268,8 +280,7 @@ function saveSettings(): void {
   );
 
   try {
-    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+    writeSettingsAtomically(settingsPath, JSON.stringify(settings, null, 2));
     console.info(
       `[settings] Successfully ${existedBeforeSave ? "updated" : "created"} settings file: ${settingsPath}`,
     );
@@ -285,16 +296,14 @@ function saveSettings(): void {
       );
       settingsPathOverride = userDataPath;
       settingsPath = userDataPath;
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
       const fallbackExisted = fs.existsSync(settingsPath);
       console.info(
         `[settings] path: ${settingsPath}; exists before fallback save: ${fallbackExisted}`,
       );
       try {
-        fs.writeFileSync(
+        writeSettingsAtomically(
           settingsPath,
           JSON.stringify(settings, null, 2),
-          "utf8",
         );
         console.info(
           `[settings] Successfully ${fallbackExisted ? "updated" : "created"} settings file: ${settingsPath}`,
@@ -705,64 +714,30 @@ function defaultCountdownWindowPosition(
   };
 }
 
-/** Check that a saved countdown window fits inside a display work area.
- * @param position The saved countdown window bounds.
- * @param display The display that should contain the window.
+/** Convert Electron display metadata into the shape used by position restoration.
+ * @param display Electron display to convert.
  */
-function countdownPositionFits(
-  position: CountdownWindowPosition,
-  display: Electron.Display,
-): boolean {
-  const area = display.workArea;
-  return (
-    position.x >= area.x &&
-    position.y >= area.y &&
-    position.x + position.width <= area.x + area.width &&
-    position.y + position.height <= area.y + area.height
-  );
+function toCountdownDisplay(display: Electron.Display): CountdownDisplay {
+  return {
+    id: String(display.id),
+    label: display.label,
+    bounds: display.bounds,
+    workArea: display.workArea,
+  };
 }
 
 /** Resolve the saved monitor and return a usable countdown window position.
  */
 function getRestoredCountdownWindowPosition(): CountdownWindowPosition {
-  const displays = screen.getAllDisplays();
-  const saved = countdownWindowPosition;
-  let display = saved
-    ? displays.find((item) => String(item.id) === saved.displayId)
-    : undefined;
-  if (!display && saved?.displayLabel) {
-    const matches = displays.filter(
-      (item) => item.label === saved.displayLabel,
-    );
-    if (matches.length === 1) display = matches[0];
-  }
-  if (!display && saved?.displayBounds) {
-    const bounds = saved.displayBounds;
-    const matches = displays.filter(
-      (item) =>
-        item.bounds.x === bounds.x &&
-        item.bounds.y === bounds.y &&
-        item.bounds.width === bounds.width &&
-        item.bounds.height === bounds.height,
-    );
-    if (matches.length === 1) display = matches[0];
-  }
-
-  if (
-    saved &&
-    display &&
-    countdownPositionFits({ ...saved, displayId: String(display.id) }, display)
-  ) {
-    countdownWindowWidth = saved.width;
-    countdownWindowHeight = saved.height;
-    return {
-      ...saved,
-      displayId: String(display.id),
-      displayLabel: display.label,
-      displayBounds: { ...display.bounds },
-    };
-  }
-  return defaultCountdownWindowPosition();
+  const displays = screen.getAllDisplays().map(toCountdownDisplay);
+  const position = resolveCountdownWindowPosition(
+    countdownWindowPosition,
+    displays,
+    defaultCountdownWindowPosition(),
+  );
+  countdownWindowWidth = position.width;
+  countdownWindowHeight = position.height;
+  return position;
 }
 
 /** Update saved display metadata from the current native window bounds.
@@ -815,7 +790,14 @@ function handleCountdownDisplayRemoved(): void {
     width: bounds.width,
     height: bounds.height,
   };
-  if (!countdownPositionFits(current, display)) {
+  if (
+    !isCountdownPositionWithinWorkArea(current, {
+      id: String(display.id),
+      label: display.label,
+      bounds: display.bounds,
+      workArea: display.workArea,
+    })
+  ) {
     const fallback = defaultCountdownWindowPosition();
     countdownWindow.setBounds({
       x: fallback.x,
@@ -1275,110 +1257,113 @@ function initializeApp(): void {
   // Restore after creating the window and tray so the timer can update both.
   restoreSettings();
 
-  registerIpcHandlers({
-    isMainWindowSender,
-    isSettingsWindowSender,
-    isAlertWindowSender,
-    isCountdownWindowSender,
-    getUiSettings: () => ({
-      advancedControlsVisible,
-      instructionsVisible,
-      notificationMode,
-      alarmSoundEnabled,
-      alarmSound,
-      countdownFormat: countdownFormatPref,
-      countdownFontSize: countdownFontSizePref,
-      countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
-      countdownBackgroundColor: countdownBackgroundColorPref,
-      trayIconColor: trayIconColorPref,
-      mainWindowBackgroundColor: mainWindowBackgroundColorPref,
-      sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
-      sectionBackgroundColor: sectionBackgroundColorPref,
-      confirmQuit: confirmQuitPref,
-    }),
-    setUiSettings: (settings) => {
-      if (typeof settings.advancedControlsVisible === "boolean")
-        advancedControlsVisible = settings.advancedControlsVisible;
-      if (typeof settings.instructionsVisible === "boolean")
-        instructionsVisible = settings.instructionsVisible;
-      if (settings.notificationMode)
-        notificationMode = settings.notificationMode;
-      if (typeof settings.alarmSoundEnabled === "boolean")
-        alarmSoundEnabled = settings.alarmSoundEnabled;
-      if (settings.alarmSound) alarmSound = settings.alarmSound;
-      if (settings.countdownFormat)
-        countdownFormatPref = settings.countdownFormat;
-      if (typeof settings.countdownFontSize === "number")
-        countdownFontSizePref = settings.countdownFontSize;
-      if (typeof settings.countdownMenuButtonVisible === "boolean")
-        countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible;
-      if (settings.countdownBackgroundColor)
-        countdownBackgroundColorPref = settings.countdownBackgroundColor;
-      if (settings.trayIconColor) trayIconColorPref = settings.trayIconColor;
-      if (settings.mainWindowBackgroundColor)
-        mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor;
-      if (settings.sectionHeaderBackgroundColor)
-        sectionHeaderBackgroundColorPref =
-          settings.sectionHeaderBackgroundColor;
-      if (settings.sectionBackgroundColor)
-        sectionBackgroundColorPref = settings.sectionBackgroundColor;
-      if (typeof settings.confirmQuit === "boolean")
-        confirmQuitPref = settings.confirmQuit;
-      updateCountdownWindow();
-      updateTrayIcon();
-      saveSettings();
-      if (mainWindow && !mainWindow.isDestroyed())
-        mainWindow.webContents.send("ui-colors-updated", {
-          mainWindowBackgroundColor: mainWindowBackgroundColorPref,
-          sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
-          sectionBackgroundColor: sectionBackgroundColorPref,
-        });
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("alert-preferences-updated", {
-          notificationMode,
-          alarmSoundEnabled,
-          alarmSound,
-        });
-      }
+  registerIpcHandlers(
+    {
+      isMainWindowSender,
+      isSettingsWindowSender,
+      isAlertWindowSender,
+      isCountdownWindowSender,
+      getUiSettings: () => ({
+        advancedControlsVisible,
+        instructionsVisible,
+        notificationMode,
+        alarmSoundEnabled,
+        alarmSound,
+        countdownFormat: countdownFormatPref,
+        countdownFontSize: countdownFontSizePref,
+        countdownMenuButtonVisible: countdownMenuButtonVisiblePref,
+        countdownBackgroundColor: countdownBackgroundColorPref,
+        trayIconColor: trayIconColorPref,
+        mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+        sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+        sectionBackgroundColor: sectionBackgroundColorPref,
+        confirmQuit: confirmQuitPref,
+      }),
+      setUiSettings: (settings) => {
+        if (typeof settings.advancedControlsVisible === "boolean")
+          advancedControlsVisible = settings.advancedControlsVisible;
+        if (typeof settings.instructionsVisible === "boolean")
+          instructionsVisible = settings.instructionsVisible;
+        if (settings.notificationMode)
+          notificationMode = settings.notificationMode;
+        if (typeof settings.alarmSoundEnabled === "boolean")
+          alarmSoundEnabled = settings.alarmSoundEnabled;
+        if (settings.alarmSound) alarmSound = settings.alarmSound;
+        if (settings.countdownFormat)
+          countdownFormatPref = settings.countdownFormat;
+        if (typeof settings.countdownFontSize === "number")
+          countdownFontSizePref = settings.countdownFontSize;
+        if (typeof settings.countdownMenuButtonVisible === "boolean")
+          countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible;
+        if (settings.countdownBackgroundColor)
+          countdownBackgroundColorPref = settings.countdownBackgroundColor;
+        if (settings.trayIconColor) trayIconColorPref = settings.trayIconColor;
+        if (settings.mainWindowBackgroundColor)
+          mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor;
+        if (settings.sectionHeaderBackgroundColor)
+          sectionHeaderBackgroundColorPref =
+            settings.sectionHeaderBackgroundColor;
+        if (settings.sectionBackgroundColor)
+          sectionBackgroundColorPref = settings.sectionBackgroundColor;
+        if (typeof settings.confirmQuit === "boolean")
+          confirmQuitPref = settings.confirmQuit;
+        updateCountdownWindow();
+        updateTrayIcon();
+        saveSettings();
+        if (mainWindow && !mainWindow.isDestroyed())
+          mainWindow.webContents.send("ui-colors-updated", {
+            mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+            sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+            sectionBackgroundColor: sectionBackgroundColorPref,
+          });
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("alert-preferences-updated", {
+            notificationMode,
+            alarmSoundEnabled,
+            alarmSound,
+          });
+        }
+      },
+      setAlertWindowMode,
+      openSettingsWindow,
+      dismissAlertWindow: () => closeAlertWindow(true),
+      getTimerState: () => ({
+        seconds: remainingSeconds,
+        durationSeconds: timerDurationSeconds,
+        isRunning: !!timerInterval && !isPaused,
+        isPaused,
+      }),
+      setAlerting: (alerting) => {
+        timerState.isAlerting = alerting;
+        if (alerting) startBlinking();
+        else stopBlinking();
+        updateTrayIcon();
+      },
+      startTimer,
+      stopTimer,
+      pauseResumeTimer,
+      adjustTimerTime,
+      toggleCountdownWindow,
+      closeCountdownWindow: destroyCountdownWindow,
+      showCountdownWindowMenu,
+      resizeCountdownWindow,
+      minimizeWindow: () => {
+        mainWindow?.hide();
+        updateTrayMenu();
+      },
+      clickTray: () => {
+        if (!tray || !mainWindow) return;
+        if (mainWindow.isVisible()) mainWindow.hide();
+        else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        updateTrayMenu();
+      },
+      requestQuit,
     },
-    setAlertWindowMode,
-    openSettingsWindow,
-    dismissAlertWindow: () => closeAlertWindow(true),
-    getTimerState: () => ({
-      seconds: remainingSeconds,
-      durationSeconds: timerDurationSeconds,
-      isRunning: !!timerInterval && !isPaused,
-      isPaused,
-    }),
-    setAlerting: (alerting) => {
-      timerState.isAlerting = alerting;
-      if (alerting) startBlinking();
-      else stopBlinking();
-      updateTrayIcon();
-    },
-    startTimer,
-    stopTimer,
-    pauseResumeTimer,
-    adjustTimerTime,
-    toggleCountdownWindow,
-    closeCountdownWindow: destroyCountdownWindow,
-    showCountdownWindowMenu,
-    resizeCountdownWindow,
-    minimizeWindow: () => {
-      mainWindow?.hide();
-      updateTrayMenu();
-    },
-    clickTray: () => {
-      if (!tray || !mainWindow) return;
-      if (mainWindow.isVisible()) mainWindow.hide();
-      else {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-      updateTrayMenu();
-    },
-    requestQuit,
-  });
+    ipcMain,
+  );
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

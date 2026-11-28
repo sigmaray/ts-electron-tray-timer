@@ -47,6 +47,15 @@ export type CountdownDisplayBounds = {
   height: number;
 };
 
+/** Display geometry needed to restore the countdown window without Electron APIs.
+ */
+export type CountdownDisplay = {
+  id: string;
+  label?: string;
+  bounds: CountdownDisplayBounds;
+  workArea: CountdownDisplayBounds;
+};
+
 /** Saved screen position and size of the floating countdown window.
  */
 export type CountdownWindowPosition = {
@@ -58,6 +67,88 @@ export type CountdownWindowPosition = {
   width: number;
   height: number;
 };
+
+/** Check whether the saved window rectangle is fully inside a display work area.
+ * @param position Countdown window position and dimensions to check.
+ * @param display Display work area to check against.
+ */
+export function isCountdownPositionWithinWorkArea(
+  position: Pick<CountdownWindowPosition, "x" | "y" | "width" | "height">,
+  display: CountdownDisplay,
+): boolean {
+  const area = display.workArea;
+  return (
+    position.x >= area.x &&
+    position.y >= area.y &&
+    position.x + position.width <= area.x + area.width &&
+    position.y + position.height <= area.y + area.height
+  );
+}
+
+/** Match a saved countdown position to a current display or return its fallback.
+ * @param saved Previously persisted countdown position, if available.
+ * @param displays Current displays and their usable work areas.
+ * @param fallback Default position to use when the saved display is unavailable.
+ */
+export function resolveCountdownWindowPosition(
+  saved: CountdownWindowPosition | undefined,
+  displays: CountdownDisplay[],
+  fallback: CountdownWindowPosition,
+): CountdownWindowPosition {
+  const savedPosition = saved;
+  if (!savedPosition) return fallback;
+  const savedDisplayId = savedPosition.displayId;
+  const savedDisplayLabel = savedPosition.displayLabel;
+
+  /** Check whether a display still has the saved identifier.
+   * @param candidate Current display being checked.
+   */
+  function matchesSavedId(candidate: CountdownDisplay): boolean {
+    return candidate.id === savedDisplayId;
+  }
+
+  /** Check whether a display uniquely matches the saved display label.
+   * @param candidate Current display being checked.
+   */
+  function matchesSavedLabel(candidate: CountdownDisplay): boolean {
+    return candidate.label === savedDisplayLabel;
+  }
+
+  let display = displays.find(matchesSavedId);
+  if (!display && saved.displayLabel) {
+    const matches = displays.filter(matchesSavedLabel);
+    if (matches.length === 1) display = matches[0];
+  }
+  const savedBounds = savedPosition.displayBounds;
+  if (!display && savedBounds) {
+    const expectedBounds = savedBounds;
+    /** Check whether display geometry uniquely matches the saved bounds.
+     * @param candidate Current display being checked.
+     */
+    function matchesSavedBounds(candidate: CountdownDisplay): boolean {
+      return (
+        candidate.bounds.x === expectedBounds.x &&
+        candidate.bounds.y === expectedBounds.y &&
+        candidate.bounds.width === expectedBounds.width &&
+        candidate.bounds.height === expectedBounds.height
+      );
+    }
+
+    const matches = displays.filter(matchesSavedBounds);
+    if (matches.length === 1) display = matches[0];
+  }
+  if (!display) return fallback;
+
+  if (!isCountdownPositionWithinWorkArea(savedPosition, display))
+    return fallback;
+
+  return {
+    ...savedPosition,
+    displayId: display.id,
+    displayLabel: display.label,
+    displayBounds: { ...display.bounds },
+  };
+}
 
 /** Check whether an unknown JSON value is a non-null object record.
  * @param value The value to inspect.
