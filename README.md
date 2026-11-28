@@ -61,7 +61,7 @@ npm run build:electron # Package the app for the current platform
 
 ## Settings and portable mode
 
-Settings are saved in `settings.json`. The repository and packaged app include a `portable-mode` marker. When the marker's directory is writable, settings are stored next to it. This keeps settings with the app folder. If that directory is read-only, the app uses Electron's per-user `userData` directory instead.
+Settings are saved in `settings.json`. Running from source uses Electron's per-user `userData` directory. When you run `npm run build:electron`, the build creates a `portable-mode` marker and includes it in the packaged app's resources; the marker is generated locally and is not stored in Git. If the resources directory is writable, settings are stored beside the marker. If it is read-only, the app uses Electron's per-user `userData` directory instead.
 
 To always use the per-user location in a packaged build, remove `portable-mode` from the app resources. When the app selects a new settings location, it migrates an existing settings file from supported older locations if the destination does not already have one.
 
