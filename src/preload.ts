@@ -52,7 +52,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Subscribes to updates of the main window's configurable colors.
    * @param callback The handler invoked with the latest color preferences.
    */
-  onUiColorsUpdated: (callback: (colors: { mainWindowBackgroundColor: string; sectionHeaderBackgroundColor: string; sectionBackgroundColor: string }) => void) => {
+  onUiColorsUpdated: (
+    callback: (colors: {
+      mainWindowBackgroundColor: string;
+      sectionHeaderBackgroundColor: string;
+      sectionBackgroundColor: string;
+    }) => void,
+  ) => {
     ipcRenderer.on("ui-colors-updated", (_event, colors) => callback(colors));
   },
   /** Opens the separate application settings window. */

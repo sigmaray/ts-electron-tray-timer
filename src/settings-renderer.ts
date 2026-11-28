@@ -99,7 +99,9 @@ async function initializeSettingsWindow(): Promise<void> {
     sectionBackgroundColor: "#ffffff",
   }));
   const pending: Partial<AlertSettings> = {};
-  const confirmQuit = document.getElementById("confirmQuit") as HTMLInputElement;
+  const confirmQuit = document.getElementById(
+    "confirmQuit",
+  ) as HTMLInputElement;
   confirmQuit.checked = settings.confirmQuit;
   const notificationMode = document.querySelector<HTMLInputElement>(
     `input[name="notificationMode"][value="${settings.notificationMode}"]`,
@@ -148,15 +150,22 @@ async function initializeSettingsWindow(): Promise<void> {
     const hex = document.getElementById(hexId) as HTMLInputElement;
     picker.value = settings[pickerId];
     hex.value = picker.value;
-    picker.addEventListener("input", () => { hex.value = picker.value; hex.setCustomValidity(""); save({ [pickerId]: picker.value } as Partial<AlertSettings>); });
+    picker.addEventListener("input", () => {
+      hex.value = picker.value;
+      hex.setCustomValidity("");
+      save({ [pickerId]: picker.value } as Partial<AlertSettings>);
+    });
     hex.addEventListener("input", () => {
       const value = hex.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-        picker.value = value.toLowerCase(); hex.setCustomValidity("");
+        picker.value = value.toLowerCase();
+        hex.setCustomValidity("");
         save({ [pickerId]: picker.value } as Partial<AlertSettings>);
       } else hex.setCustomValidity("Enter a color in #RRGGBB format.");
     });
-    hex.addEventListener("blur", () => { if (/^#[0-9a-fA-F]{6}$/.test(hex.value.trim())) hex.value = picker.value; });
+    hex.addEventListener("blur", () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(hex.value.trim())) hex.value = picker.value;
+    });
   }
 
   /** Stages a partial preference update and reflects its status in the window.
@@ -208,7 +217,9 @@ async function initializeSettingsWindow(): Promise<void> {
           });
       });
     });
-  confirmQuit.addEventListener("change", () => save({ confirmQuit: confirmQuit.checked }));
+  confirmQuit.addEventListener("change", () =>
+    save({ confirmQuit: confirmQuit.checked }),
+  );
   document
     .querySelectorAll<HTMLInputElement>('input[name="alarmSoundEnabled"]')
     .forEach((input) => {
@@ -244,7 +255,9 @@ async function initializeSettingsWindow(): Promise<void> {
     colorPairs.forEach(([pickerId, hexId], index) => {
       const picker = document.getElementById(pickerId) as HTMLInputElement;
       const hex = document.getElementById(hexId) as HTMLInputElement;
-      picker.value = defaults[index]; hex.value = defaults[index]; hex.setCustomValidity("");
+      picker.value = defaults[index];
+      hex.value = defaults[index];
+      hex.setCustomValidity("");
       save({ [pickerId]: defaults[index] } as Partial<AlertSettings>);
     });
   });
@@ -254,8 +267,12 @@ async function initializeSettingsWindow(): Promise<void> {
   document.getElementById("settingsClose")?.addEventListener("click", () => {
     window.close();
   });
-  document.getElementById("settingsApply")?.addEventListener("click", () => applySettings(false));
-  document.getElementById("settingsSave")?.addEventListener("click", () => applySettings(true));
+  document
+    .getElementById("settingsApply")
+    ?.addEventListener("click", () => applySettings(false));
+  document
+    .getElementById("settingsSave")
+    ?.addEventListener("click", () => applySettings(true));
 }
 
 document.addEventListener("DOMContentLoaded", () => {

@@ -6,7 +6,11 @@ import { createCanvas } from "canvas";
  * @param isBlinking Whether to use the alert red background.
  * @param backgroundColor The configured background color for a normal icon.
  */
-export function createTextIcon(text: string, isBlinking = false, backgroundColor = "#7c3aed"): NativeImage {
+export function createTextIcon(
+  text: string,
+  isBlinking = false,
+  backgroundColor = "#7c3aed",
+): NativeImage {
   const size = 22;
   const canvas = createCanvas(size, size);
   const context = canvas.getContext("2d");

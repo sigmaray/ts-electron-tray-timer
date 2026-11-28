@@ -53,7 +53,13 @@ interface ElectronAPI {
   /** Subscribes to main-window color preference updates.
    * @param callback The handler that applies the updated colors.
    */
-  onUiColorsUpdated(callback: (colors: { mainWindowBackgroundColor: string; sectionHeaderBackgroundColor: string; sectionBackgroundColor: string }) => void): void;
+  onUiColorsUpdated(
+    callback: (colors: {
+      mainWindowBackgroundColor: string;
+      sectionHeaderBackgroundColor: string;
+      sectionBackgroundColor: string;
+    }) => void,
+  ): void;
   /** Opens the separate application settings window. */
   openSettingsWindow(): void;
   /** Sets or clears the always-on-top completion window.

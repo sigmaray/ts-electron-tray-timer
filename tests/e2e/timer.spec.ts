@@ -592,15 +592,25 @@ test("shows a missed timer alert once after restart", async () => {
 
   try {
     const firstApp = await launchWithSettings();
-    const firstWindow = await firstApp.firstWindow();
-    firstWindow.on("dialog", (dialog) => void dialog.accept());
-    await firstWindow.waitForSelector("#dismissAlertBtn", {
-      state: "visible",
-      timeout: 10_000,
-    });
+    await firstApp.firstWindow();
+    await expect
+      .poll(
+        async () =>
+          (await firstApp.windows()).some((page) =>
+            page.url().endsWith("alert.html"),
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+    const alertWindow = (await firstApp.windows()).find((page) =>
+      page.url().endsWith("alert.html"),
+    );
+    expect(alertWindow).toBeDefined();
+    await expect(alertWindow!.locator("#dismissTimerAlert")).toBeVisible();
     expect(
       JSON.parse(fs.readFileSync(isolatedSettingsPath, "utf8")).timer,
     ).toBeNull();
+    await alertWindow!.locator("#dismissTimerAlert").click();
     await firstApp.close();
 
     const secondApp = await launchWithSettings();

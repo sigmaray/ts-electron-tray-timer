@@ -91,7 +91,8 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     )
       return;
     const settings: Partial<UiSettings> = {};
-    if (typeof value.confirmQuit === "boolean") settings.confirmQuit = value.confirmQuit;
+    if (typeof value.confirmQuit === "boolean")
+      settings.confirmQuit = value.confirmQuit;
     if (typeof value.advancedControlsVisible === "boolean")
       settings.advancedControlsVisible = value.advancedControlsVisible;
     if (typeof value.instructionsVisible === "boolean")
@@ -131,9 +132,15 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     )
       settings.countdownBackgroundColor =
         value.countdownBackgroundColor.toLowerCase();
-    for (const colorKey of ["trayIconColor", "mainWindowBackgroundColor", "sectionHeaderBackgroundColor", "sectionBackgroundColor"] as const) {
+    for (const colorKey of [
+      "trayIconColor",
+      "mainWindowBackgroundColor",
+      "sectionHeaderBackgroundColor",
+      "sectionBackgroundColor",
+    ] as const) {
       const color = value[colorKey];
-      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) settings[colorKey] = color.toLowerCase();
+      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color))
+        settings[colorKey] = color.toLowerCase();
     }
     if (Object.keys(settings).length) deps.setUiSettings(settings);
   });

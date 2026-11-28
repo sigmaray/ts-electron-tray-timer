@@ -331,8 +331,10 @@ function restoreSettings(): void {
   countdownMenuButtonVisiblePref = settings.countdownMenuButtonVisible ?? true;
   countdownBackgroundColorPref = settings.countdownBackgroundColor ?? "#5b7fa6";
   trayIconColorPref = settings.trayIconColor ?? "#5b7fa6";
-  mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor ?? "#f8f9fa";
-  sectionHeaderBackgroundColorPref = settings.sectionHeaderBackgroundColor ?? "#0d6efd";
+  mainWindowBackgroundColorPref =
+    settings.mainWindowBackgroundColor ?? "#f8f9fa";
+  sectionHeaderBackgroundColorPref =
+    settings.sectionHeaderBackgroundColor ?? "#0d6efd";
   sectionBackgroundColorPref = settings.sectionBackgroundColor ?? "#ffffff";
   confirmQuitPref = settings.confirmQuit ?? true;
   countdownWindowPosition = settings.countdownWindowPosition;
@@ -1313,18 +1315,24 @@ function initializeApp(): void {
       if (settings.countdownBackgroundColor)
         countdownBackgroundColorPref = settings.countdownBackgroundColor;
       if (settings.trayIconColor) trayIconColorPref = settings.trayIconColor;
-      if (settings.mainWindowBackgroundColor) mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor;
-      if (settings.sectionHeaderBackgroundColor) sectionHeaderBackgroundColorPref = settings.sectionHeaderBackgroundColor;
-      if (settings.sectionBackgroundColor) sectionBackgroundColorPref = settings.sectionBackgroundColor;
-      if (typeof settings.confirmQuit === "boolean") confirmQuitPref = settings.confirmQuit;
+      if (settings.mainWindowBackgroundColor)
+        mainWindowBackgroundColorPref = settings.mainWindowBackgroundColor;
+      if (settings.sectionHeaderBackgroundColor)
+        sectionHeaderBackgroundColorPref =
+          settings.sectionHeaderBackgroundColor;
+      if (settings.sectionBackgroundColor)
+        sectionBackgroundColorPref = settings.sectionBackgroundColor;
+      if (typeof settings.confirmQuit === "boolean")
+        confirmQuitPref = settings.confirmQuit;
       updateCountdownWindow();
       updateTrayIcon();
       saveSettings();
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("ui-colors-updated", {
-        mainWindowBackgroundColor: mainWindowBackgroundColorPref,
-        sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
-        sectionBackgroundColor: sectionBackgroundColorPref,
-      });
+      if (mainWindow && !mainWindow.isDestroyed())
+        mainWindow.webContents.send("ui-colors-updated", {
+          mainWindowBackgroundColor: mainWindowBackgroundColorPref,
+          sectionHeaderBackgroundColor: sectionHeaderBackgroundColorPref,
+          sectionBackgroundColor: sectionBackgroundColorPref,
+        });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("alert-preferences-updated", {
           notificationMode,
